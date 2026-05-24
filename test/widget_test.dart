@@ -11,7 +11,7 @@ import 'package:auto_qui/main.dart';
 
 void main() {
   testWidgets('AutoQui MVP smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const AutoQuiApp(showMap: false));
+    await tester.pumpWidget(const AutoQuiApp(showMap: false, showAds: false));
 
     expect(find.text('AutoQui'), findsOneWidget);
     expect(find.text('Localizza'), findsOneWidget);

@@ -1,18 +1,28 @@
-import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 
-void main() {
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+import 'models/parking_spot.dart';
+import 'services/ads_service.dart';
+import 'services/location_service.dart';
+import 'services/navigation_service.dart';
+import 'services/parking_detection_service.dart';
+import 'services/parking_storage.dart';
+import 'services/permission_service.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AdsService().initialize();
   runApp(const AutoQuiApp());
 }
 
 class AutoQuiApp extends StatelessWidget {
-  const AutoQuiApp({super.key, this.showMap = true});
+  const AutoQuiApp({super.key, this.showMap = true, this.showAds = true});
 
   final bool showMap;
+  final bool showAds;
 
   @override
   Widget build(BuildContext context) {
@@ -25,27 +35,34 @@ class AutoQuiApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: seed),
       ),
-      home: AutoQuiHome(showMap: showMap),
+      home: AutoQuiHome(showMap: showMap, showAds: showAds),
     );
   }
 }
 
 class AutoQuiHome extends StatefulWidget {
-  const AutoQuiHome({super.key, this.showMap = true});
+  const AutoQuiHome({super.key, this.showMap = true, this.showAds = true});
 
   final bool showMap;
+  final bool showAds;
 
   @override
   State<AutoQuiHome> createState() => _AutoQuiHomeState();
 }
 
 class _AutoQuiHomeState extends State<AutoQuiHome> {
-  static const _parkingLatKey = 'parking_lat';
-  static const _parkingLngKey = 'parking_lng';
   static const _fallbackPosition = LatLng(41.9028, 12.4964);
 
+  final _storage = ParkingStorage();
+  final _locationService = LocationService();
+  final _navigationService = NavigationService();
+  final _detectionService = ParkingDetectionService();
+  final _permissionService = PermissionService();
+
   GoogleMapController? _mapController;
-  LatLng? _parkingPosition;
+  StreamSubscription? _positionSubscription;
+  ParkingSpot? _parkingSpot;
+  LatLng? _userPosition;
   bool _locating = false;
   bool _saving = false;
   bool _openingRoute = false;
@@ -54,54 +71,61 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
   void initState() {
     super.initState();
     _loadSavedParking();
+    _startParkingDetection();
+    _startUserPositionUpdates();
   }
 
   Future<void> _loadSavedParking() async {
-    final preferences = await SharedPreferences.getInstance();
-    final latitude = preferences.getDouble(_parkingLatKey);
-    final longitude = preferences.getDouble(_parkingLngKey);
-
-    if (!mounted || latitude == null || longitude == null) {
+    final parkingSpot = await _storage.loadParkingSpot();
+    if (!mounted || parkingSpot == null) {
       return;
     }
 
-    final parkingPosition = LatLng(latitude, longitude);
-    setState(() => _parkingPosition = parkingPosition);
-
-    await _animateTo(parkingPosition);
+    setState(() => _parkingSpot = parkingSpot);
+    await _animateTo(parkingSpot.latLng);
   }
 
-  Future<Position?> _getCurrentPosition() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _showMessage('Attiva il GPS per usare la posizione corrente');
-      return null;
+  Future<void> _startParkingDetection() async {
+    try {
+      await _permissionService.requestParkingDetectionPermissions();
+      await _detectionService.start();
+    } catch (_) {
+      // Detection is best-effort: manual parking save remains fully usable.
     }
+  }
 
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+  Future<void> _startUserPositionUpdates() async {
+    try {
+      _positionSubscription = _locationService.positionStream().listen((
+        position,
+      ) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _userPosition = LatLng(position.latitude, position.longitude);
+        });
+      });
+    } catch (_) {
+      // Permission may not be granted yet; explicit buttons request it later.
     }
-
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      _showMessage('Permesso posizione non concesso');
-      return null;
-    }
-
-    return Geolocator.getCurrentPosition();
   }
 
   Future<void> _centerOnCurrentLocation() async {
     setState(() => _locating = true);
 
     try {
-      final position = await _getCurrentPosition();
+      final position = await _locationService.getCurrentPosition();
       if (position == null) {
         return;
       }
 
-      await _animateTo(LatLng(position.latitude, position.longitude));
+      final target = LatLng(position.latitude, position.longitude);
+      setState(() => _userPosition = target);
+      await _animateTo(target);
+    } on LocationException catch (error) {
+      _showMessage(error.message);
     } catch (_) {
       _showMessage('Non riesco a leggere la posizione ora');
     } finally {
@@ -115,23 +139,31 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
     setState(() => _saving = true);
 
     try {
-      final position = await _getCurrentPosition();
+      final position = await _locationService.getCurrentPosition();
       if (position == null) {
         return;
       }
 
-      final parkingPosition = LatLng(position.latitude, position.longitude);
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setDouble(_parkingLatKey, parkingPosition.latitude);
-      await preferences.setDouble(_parkingLngKey, parkingPosition.longitude);
+      final parkingSpot = ParkingSpot(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        savedAt: DateTime.now(),
+      );
+
+      await _storage.saveParkingSpot(parkingSpot);
 
       if (!mounted) {
         return;
       }
 
-      setState(() => _parkingPosition = parkingPosition);
-      await _animateTo(parkingPosition);
+      setState(() {
+        _parkingSpot = parkingSpot;
+        _userPosition = parkingSpot.latLng;
+      });
+      await _animateTo(parkingSpot.latLng);
       _showMessage('Posizione parcheggio salvata');
+    } on LocationException catch (error) {
+      _showMessage(error.message);
     } catch (_) {
       _showMessage('Non riesco a salvare il parcheggio ora');
     } finally {
@@ -142,48 +174,22 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
   }
 
   Future<void> _openRouteToParking() async {
-    final parkingPosition = _parkingPosition;
-    if (parkingPosition == null) {
+    final parkingSpot = _parkingSpot;
+    if (parkingSpot == null) {
       return;
     }
 
     setState(() => _openingRoute = true);
 
-    final navigationUri = Uri.parse(
-      'google.navigation:q=${parkingPosition.latitude},'
-      '${parkingPosition.longitude}&mode=w',
-    );
-    final fallbackUri = Uri.https('www.google.com', '/maps/dir/', {
-      'api': '1',
-      'destination': '${parkingPosition.latitude},${parkingPosition.longitude}',
-      'travelmode': 'walking',
-    });
-
     try {
-      final openedNavigation = await launchUrl(
-        navigationUri,
-        mode: LaunchMode.externalApplication,
+      final opened = await _navigationService.openWalkingRoute(
+        parkingSpot.latLng,
       );
-
-      if (!openedNavigation) {
-        final openedFallback = await launchUrl(
-          fallbackUri,
-          mode: LaunchMode.externalApplication,
-        );
-
-        if (!openedFallback) {
-          _showMessage('Non riesco ad aprire Google Maps');
-        }
-      }
-    } catch (_) {
-      final openedFallback = await launchUrl(
-        fallbackUri,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!openedFallback) {
+      if (!opened) {
         _showMessage('Non riesco ad aprire Google Maps');
       }
+    } catch (_) {
+      _showMessage('Non riesco ad aprire Google Maps');
     } finally {
       if (mounted) {
         setState(() => _openingRoute = false);
@@ -194,6 +200,28 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
   Future<void> _animateTo(LatLng target) async {
     await _mapController?.animateCamera(
       CameraUpdate.newCameraPosition(CameraPosition(target: target, zoom: 16)),
+    );
+  }
+
+  void _showPrivacyInfo() {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Privacy AutoQui'),
+          content: const Text(
+            'AutoQui usa la posizione esclusivamente per aiutarti a '
+            "ritrovare l'auto parcheggiata. I dati restano sul dispositivo "
+            'e non vengono inviati a server.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -208,23 +236,40 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
   }
 
   Set<Marker> get _markers {
-    final parkingPosition = _parkingPosition;
-    if (parkingPosition == null) {
-      return const {};
+    final markers = <Marker>{};
+    final userPosition = _userPosition;
+    final parkingSpot = _parkingSpot;
+
+    if (userPosition != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('user_position'),
+          position: userPosition,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueAzure,
+          ),
+          infoWindow: const InfoWindow(title: 'Tu sei qui'),
+        ),
+      );
     }
 
-    return {
-      Marker(
-        markerId: const MarkerId('parked_car'),
-        position: parkingPosition,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: const InfoWindow(title: 'Auto parcheggiata'),
-      ),
-    };
+    if (parkingSpot != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('parked_car'),
+          position: parkingSpot.latLng,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'Auto parcheggiata'),
+        ),
+      );
+    }
+
+    return markers;
   }
 
   @override
   void dispose() {
+    _positionSubscription?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
@@ -232,42 +277,73 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('AutoQui')),
+      appBar: AppBar(
+        title: const Text('AutoQui'),
+        actions: [
+          IconButton(
+            tooltip: 'Privacy',
+            onPressed: _showPrivacyInfo,
+            icon: const Icon(Icons.privacy_tip_outlined),
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           Positioned.fill(
             child: widget.showMap
                 ? GoogleMap(
                     initialCameraPosition: CameraPosition(
-                      target: _parkingPosition ?? _fallbackPosition,
+                      target:
+                          _parkingSpot?.latLng ??
+                          _userPosition ??
+                          _fallbackPosition,
                       zoom: 15,
                     ),
                     markers: _markers,
+                    circles: _userPosition == null
+                        ? const {}
+                        : {
+                            Circle(
+                              circleId: const CircleId('user_accuracy_hint'),
+                              center: _userPosition!,
+                              radius: 22,
+                              fillColor: const Color(0x333B82F6),
+                              strokeColor: const Color(0xFF2563EB),
+                              strokeWidth: 2,
+                            ),
+                          },
+                    myLocationEnabled: true,
                     myLocationButtonEnabled: false,
-                    myLocationEnabled: false,
                     zoomControlsEnabled: false,
                     onMapCreated: (controller) {
                       _mapController = controller;
-                      final parkingPosition = _parkingPosition;
-                      if (parkingPosition != null) {
-                        _animateTo(parkingPosition);
+                      final parkingSpot = _parkingSpot;
+                      if (parkingSpot != null) {
+                        _animateTo(parkingSpot.latLng);
                       }
                     },
                   )
                 : const ColoredBox(color: Color(0xFFDDE7DD)),
           ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _ParkingActions(
-              hasParking: _parkingPosition != null,
-              locating: _locating,
-              saving: _saving,
-              openingRoute: _openingRoute,
-              onLocate: _centerOnCurrentLocation,
-              onSaveParking: _saveParkingPosition,
-              onOpenRoute: _openRouteToParking,
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              minimum: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ParkingActions(
+                    parkingSpot: _parkingSpot,
+                    locating: _locating,
+                    saving: _saving,
+                    openingRoute: _openingRoute,
+                    onLocate: _centerOnCurrentLocation,
+                    onSaveParking: _saveParkingPosition,
+                    onOpenRoute: _openRouteToParking,
+                  ),
+                  if (widget.showAds) const _AdBanner(),
+                ],
+              ),
             ),
           ),
         ],
@@ -278,7 +354,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
 
 class _ParkingActions extends StatelessWidget {
   const _ParkingActions({
-    required this.hasParking,
+    required this.parkingSpot,
     required this.locating,
     required this.saving,
     required this.openingRoute,
@@ -287,7 +363,7 @@ class _ParkingActions extends StatelessWidget {
     required this.onOpenRoute,
   });
 
-  final bool hasParking;
+  final ParkingSpot? parkingSpot;
   final bool locating;
   final bool saving;
   final bool openingRoute;
@@ -297,41 +373,143 @@ class _ParkingActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Material(
-      elevation: 8,
-      borderRadius: BorderRadius.circular(8),
-      color: Theme.of(context).colorScheme.surface,
+      elevation: 10,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(16),
+      color: colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            OutlinedButton.icon(
-              onPressed: locating ? null : onLocate,
-              icon: locating
-                  ? const _ButtonProgress()
-                  : const Icon(Icons.my_location),
-              label: const Text('Localizza'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: locating ? null : onLocate,
+                    icon: locating
+                        ? const _ButtonProgress()
+                        : const Icon(Icons.my_location),
+                    label: const Text('Localizza'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: saving ? null : onSaveParking,
+                    icon: saving
+                        ? const _ButtonProgress()
+                        : const Icon(Icons.local_parking),
+                    label: const Text('Salva parcheggio'),
+                  ),
+                ),
+              ],
             ),
-            FilledButton.icon(
-              onPressed: saving ? null : onSaveParking,
-              icon: saving
-                  ? const _ButtonProgress()
-                  : const Icon(Icons.local_parking),
-              label: const Text('Salva parcheggio'),
-            ),
-            if (hasParking)
-              FilledButton.tonalIcon(
-                onPressed: openingRoute ? null : onOpenRoute,
-                icon: openingRoute
-                    ? const _ButtonProgress()
-                    : const Icon(Icons.directions_walk),
-                label: const Text("Vai all'auto"),
+            if (parkingSpot != null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Ultimo parcheggio salvato: ${_formatSavedAt(parkingSpot!.savedAt)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF1D4ED8),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: openingRoute ? null : onOpenRoute,
+                  icon: openingRoute
+                      ? const _ButtonProgress()
+                      : const Icon(Icons.directions_walk),
+                  label: const Text("Vai all'auto"),
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  String _formatSavedAt(DateTime savedAt) {
+    final local = savedAt.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month ${hour}:$minute';
+  }
+}
+
+class _AdBanner extends StatefulWidget {
+  const _AdBanner();
+
+  @override
+  State<_AdBanner> createState() => _AdBannerState();
+}
+
+class _AdBannerState extends State<_AdBanner> {
+  BannerAd? _bannerAd;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!AdsService.enabled) {
+      return;
+    }
+
+    _bannerAd = BannerAd(
+      adUnitId: AdsService.androidTestBannerAdUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) {
+            setState(() => _loaded = true);
+          }
+        },
+        onAdFailedToLoad: (ad, _) {
+          ad.dispose();
+          if (mounted) {
+            setState(() {
+              _bannerAd = null;
+              _loaded = false;
+            });
+          }
+        },
+      ),
+    )..load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bannerAd = _bannerAd;
+    if (!_loaded || bannerAd == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SizedBox(
+        width: bannerAd.size.width.toDouble(),
+        height: bannerAd.size.height.toDouble(),
+        child: AdWidget(ad: bannerAd),
       ),
     );
   }
