@@ -55,4 +55,4 @@ L'utente puo concedere, negare o revocare i permessi Android in qualsiasi moment
 
 ## Contatti
 
-Per domande su questa informativa: privacy-autoqui@example.com
+Per domande su questa informativa: zener82@yahoo.it
