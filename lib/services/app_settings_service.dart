@@ -71,7 +71,9 @@ class AppSettings {
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       prominentDisclosureAccepted:
           prominentDisclosureAccepted ?? this.prominentDisclosureAccepted,
-      languageCode: clearLanguageCode ? null : languageCode ?? this.languageCode,
+      languageCode: clearLanguageCode
+          ? null
+          : languageCode ?? this.languageCode,
     );
   }
 }

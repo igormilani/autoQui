@@ -10,7 +10,10 @@ class LanguageController extends ChangeNotifier {
 
   String? get languageCode => _languageCode;
 
-  Locale? get locale => _languageCode == null ? null : Locale(_languageCode);
+  Locale? get locale {
+    final languageCode = _languageCode;
+    return languageCode == null ? null : Locale(languageCode);
+  }
 
   Future<void> load() async {
     final settings = await _settingsService.load();

@@ -87,10 +87,7 @@ class AutoQuiApp extends StatelessWidget {
 }
 
 class _LanguageScope extends StatefulWidget {
-  const _LanguageScope({
-    required this.settingsService,
-    required this.builder,
-  });
+  const _LanguageScope({required this.settingsService, required this.builder});
 
   final AppSettingsService settingsService;
   final Widget Function(BuildContext, LanguageController) builder;
@@ -381,21 +378,6 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _languageSubtitle(AppLocalizations l10n) {
-    final selectedLanguage = widget.languageController.languageCode;
-    if (selectedLanguage == null) {
-      return l10n.languageSystem;
-    }
-
-    for (final option in supportedLanguageOptions) {
-      if (option.code == selectedLanguage) {
-        return '${option.flag} ${option.nativeName} (${option.code})';
-      }
-    }
-
-    return selectedLanguage;
-  }
-
   String _locationErrorMessage(LocationException error) {
     return switch (error.code) {
       LocationExceptionCode.gpsDisabled => context.l10n.gpsDisabledError,
@@ -590,11 +572,15 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
 
   Future<void> _setAutomaticDetection(bool enabled) async {
     setState(() => _updatingDetection = true);
+    final updateErrorMessage = context.l10n.automaticDetectionUpdateError;
 
     try {
       if (!enabled) {
         await widget.settingsService.setAutomaticDetectionEnabled(false);
         await widget.detectionService.stop();
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _settings = _settings.copyWith(automaticDetectionEnabled: false);
         });
@@ -603,6 +589,9 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
 
       if (!_settings.prominentDisclosureAccepted) {
         final accepted = await showParkingDisclosureDialog(context);
+        if (!mounted) {
+          return;
+        }
         if (!accepted) {
           return;
         }
@@ -613,11 +602,14 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
       await widget.settingsService.setAutomaticDetectionEnabled(true);
       await widget.permissionService.requestParkingDetectionPermissions();
       await widget.detectionService.start();
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _settings = _settings.copyWith(automaticDetectionEnabled: true);
       });
     } catch (_) {
-      _showMessage(context.l10n.automaticDetectionUpdateError);
+      _showMessage(updateErrorMessage);
     } finally {
       if (mounted) {
         setState(() => _updatingDetection = false);
@@ -627,17 +619,21 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
 
   Future<void> _setNotifications(bool enabled) async {
     setState(() => _updatingNotifications = true);
+    final updateErrorMessage = context.l10n.notificationsUpdateError;
 
     try {
       await widget.settingsService.setNotificationsEnabled(enabled);
       if (enabled) {
         await widget.permissionService.requestNotificationPermission();
       }
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _settings = _settings.copyWith(notificationsEnabled: enabled);
       });
     } catch (_) {
-      _showMessage(context.l10n.notificationsUpdateError);
+      _showMessage(updateErrorMessage);
     } finally {
       if (mounted) {
         setState(() => _updatingNotifications = false);
@@ -647,9 +643,7 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
 
   Future<void> _showPrivacyPolicy() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (context) => const PrivacyPolicyPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
     );
   }
 
@@ -664,36 +658,36 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
         final groupValue = currentCode ?? systemLanguageValue;
 
         return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                title: Text(
-                  l10n.languageTitle,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ),
-              RadioListTile<String>(
-                value: systemLanguageValue,
-                groupValue: groupValue,
-                secondary: const Text('🌐', style: TextStyle(fontSize: 24)),
-                title: Text(l10n.languageSystem),
-                subtitle: const Text('system'),
-                onChanged: (value) => Navigator.of(context).pop(value),
-              ),
-              for (final option in supportedLanguageOptions)
-                RadioListTile<String>(
-                  value: option.code,
-                  groupValue: groupValue,
-                  secondary: Text(
-                    option.flag,
-                    style: const TextStyle(fontSize: 24),
+          child: RadioGroup<String>(
+            groupValue: groupValue,
+            onChanged: (value) => Navigator.of(context).pop(value),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ListTile(
+                  title: Text(
+                    l10n.languageTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  title: Text(option.nativeName),
-                  subtitle: Text(option.code),
-                  onChanged: (value) => Navigator.of(context).pop(value),
                 ),
-            ],
+                RadioListTile<String>(
+                  value: systemLanguageValue,
+                  secondary: const Text('🌐', style: TextStyle(fontSize: 24)),
+                  title: Text(l10n.languageSystem),
+                  subtitle: const Text('system'),
+                ),
+                for (final option in supportedLanguageOptions)
+                  RadioListTile<String>(
+                    value: option.code,
+                    secondary: Text(
+                      option.flag,
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                    title: Text(option.nativeName),
+                    subtitle: Text(option.code),
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -709,6 +703,9 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
 
     final languageCode = selected == systemLanguageValue ? null : selected;
     await widget.languageController.setLanguageCode(languageCode);
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _settings = _settings.copyWith(
         languageCode: languageCode,
@@ -758,6 +755,21 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _languageSubtitle(AppLocalizations l10n) {
+    final selectedLanguage = widget.languageController.languageCode;
+    if (selectedLanguage == null) {
+      return l10n.languageSystem;
+    }
+
+    for (final option in supportedLanguageOptions) {
+      if (option.code == selectedLanguage) {
+        return '${option.flag} ${option.nativeName} (${option.code})';
+      }
+    }
+
+    return selectedLanguage;
   }
 
   @override
