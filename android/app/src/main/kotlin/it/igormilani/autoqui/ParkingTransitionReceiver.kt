@@ -25,11 +25,15 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
                 return@forEach
             }
 
-            if (event.activityType == DetectedActivity.ON_FOOT ||
-                event.activityType == DetectedActivity.WALKING ||
-                event.activityType == DetectedActivity.STILL
-            ) {
-                handlePossibleParking(context)
+            when (event.activityType) {
+                DetectedActivity.IN_VEHICLE -> {
+                    ParkingPrefs.markInVehicle(context, System.currentTimeMillis())
+                }
+                DetectedActivity.ON_FOOT,
+                DetectedActivity.WALKING -> {
+                    handlePossibleParking(context)
+                }
+                else -> Unit
             }
         }
     }
@@ -37,6 +41,7 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
     private fun handlePossibleParking(context: Context) {
         if (!ParkingPrefs.automaticDetectionEnabled(context) ||
             ParkingPrefs.recentlyIgnored(context) ||
+            !ParkingPrefs.canCreateParkingCandidate(context, System.currentTimeMillis()) ||
             !hasLocationPermission(context)
         ) {
             return

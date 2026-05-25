@@ -13,6 +13,11 @@ object ParkingPrefs {
     private const val CANDIDATE_LAT_KEY = "candidate_parking_lat"
     private const val CANDIDATE_LNG_KEY = "candidate_parking_lng"
     private const val CANDIDATE_AT_KEY = "candidate_parking_at"
+    private const val LAST_IN_VEHICLE_AT_KEY = "last_in_vehicle_at"
+
+    private const val MIN_VEHICLE_TIME_MILLIS = 2 * 60 * 1000L
+    private const val MAX_VEHICLE_TIME_MILLIS = 6 * 60 * 60 * 1000L
+    private const val CANDIDATE_COOLDOWN_MILLIS = 10 * 60 * 1000L
 
     fun saveCandidate(context: Context, latitude: Double, longitude: Double, timestamp: Long) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -20,6 +25,13 @@ object ParkingPrefs {
             .putFloat(CANDIDATE_LAT_KEY, latitude.toFloat())
             .putFloat(CANDIDATE_LNG_KEY, longitude.toFloat())
             .putLong(CANDIDATE_AT_KEY, timestamp)
+            .apply()
+    }
+
+    fun markInVehicle(context: Context, timestamp: Long) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(LAST_IN_VEHICLE_AT_KEY, timestamp)
             .apply()
     }
 
@@ -56,6 +68,24 @@ object ParkingPrefs {
         val ignoredAt = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getLong(IGNORED_AT_KEY, 0L)
         return System.currentTimeMillis() - ignoredAt < 15 * 60 * 1000
+    }
+
+    fun canCreateParkingCandidate(context: Context, timestamp: Long): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val lastInVehicleAt = prefs.getLong(LAST_IN_VEHICLE_AT_KEY, 0L)
+        if (lastInVehicleAt == 0L) {
+            return false
+        }
+
+        val vehicleElapsed = timestamp - lastInVehicleAt
+        if (vehicleElapsed < MIN_VEHICLE_TIME_MILLIS ||
+            vehicleElapsed > MAX_VEHICLE_TIME_MILLIS
+        ) {
+            return false
+        }
+
+        val lastCandidateAt = prefs.getLong(CANDIDATE_AT_KEY, 0L)
+        return timestamp - lastCandidateAt > CANDIDATE_COOLDOWN_MILLIS
     }
 
     fun automaticDetectionEnabled(context: Context): Boolean {
