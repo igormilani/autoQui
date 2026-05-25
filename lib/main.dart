@@ -846,7 +846,7 @@ class _AdBannerState extends State<_AdBanner> {
     }
 
     _bannerAd = BannerAd(
-      adUnitId: AdsService.androidTestBannerAdUnitId,
+      adUnitId: AdsService.androidBannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
