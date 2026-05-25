@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+import 'package:auto_qui/l10n/generated/app_localizations.dart';
 
 import 'models/parking_spot.dart';
 import 'services/app_settings_service.dart';
 import 'services/ads_service.dart';
+import 'services/language_service.dart';
 import 'services/location_service.dart';
 import 'services/navigation_service.dart';
 import 'services/parking_detection_service.dart';
@@ -21,32 +24,119 @@ Future<void> main() async {
 }
 
 class AutoQuiApp extends StatelessWidget {
-  const AutoQuiApp({super.key, this.showMap = true, this.showAds = true});
+  const AutoQuiApp({
+    super.key,
+    this.showMap = true,
+    this.showAds = true,
+    this.settingsService,
+  });
 
   final bool showMap;
   final bool showAds;
+  final AppSettingsService? settingsService;
 
   @override
   Widget build(BuildContext context) {
     const seed = Color(0xFF0E7C66);
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'AutoQui',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: seed),
-      ),
-      home: AutoQuiHome(showMap: showMap, showAds: showAds),
+    final appSettingsService = settingsService ?? AppSettingsService();
+
+    return _LanguageScope(
+      settingsService: appSettingsService,
+      builder: (context, languageController) {
+        return AnimatedBuilder(
+          animation: languageController,
+          builder: (context, _) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              title: 'AutoQui',
+              locale: languageController.locale,
+              supportedLocales: AppLocalizations.supportedLocales,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+              ],
+              localeListResolutionCallback: (locales, supportedLocales) {
+                for (final locale in locales ?? const <Locale>[]) {
+                  for (final supportedLocale in supportedLocales) {
+                    if (supportedLocale.languageCode == locale.languageCode) {
+                      return supportedLocale;
+                    }
+                  }
+                }
+                return const Locale('en');
+              },
+              theme: ThemeData(
+                useMaterial3: true,
+                colorScheme: ColorScheme.fromSeed(seedColor: seed),
+              ),
+              home: AutoQuiHome(
+                showMap: showMap,
+                showAds: showAds,
+                settingsService: appSettingsService,
+                languageController: languageController,
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
 
+class _LanguageScope extends StatefulWidget {
+  const _LanguageScope({
+    required this.settingsService,
+    required this.builder,
+  });
+
+  final AppSettingsService settingsService;
+  final Widget Function(BuildContext, LanguageController) builder;
+
+  @override
+  State<_LanguageScope> createState() => _LanguageScopeState();
+}
+
+class _LanguageScopeState extends State<_LanguageScope> {
+  late final LanguageController _languageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _languageController = LanguageController(widget.settingsService)..load();
+  }
+
+  @override
+  void dispose() {
+    _languageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(context, _languageController);
+  }
+}
+
+extension L10nContext on BuildContext {
+  AppLocalizations get l10n => AppLocalizations.of(this);
+}
+
 class AutoQuiHome extends StatefulWidget {
-  const AutoQuiHome({super.key, this.showMap = true, this.showAds = true});
+  const AutoQuiHome({
+    super.key,
+    this.showMap = true,
+    this.showAds = true,
+    required this.settingsService,
+    required this.languageController,
+  });
 
   final bool showMap;
   final bool showAds;
+  final AppSettingsService settingsService;
+  final LanguageController languageController;
 
   @override
   State<AutoQuiHome> createState() => _AutoQuiHomeState();
@@ -60,7 +150,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
   final _navigationService = NavigationService();
   final _detectionService = ParkingDetectionService();
   final _permissionService = PermissionService();
-  final _settingsService = AppSettingsService();
+  late final AppSettingsService _settingsService = widget.settingsService;
 
   GoogleMapController? _mapController;
   StreamSubscription? _positionSubscription;
@@ -69,6 +159,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
     automaticDetectionEnabled: true,
     notificationsEnabled: true,
     prominentDisclosureAccepted: false,
+    languageCode: null,
   );
   LatLng? _userPosition;
   bool _locating = false;
@@ -182,9 +273,9 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       setState(() => _userPosition = target);
       await _animateTo(target);
     } on LocationException catch (error) {
-      _showMessage(error.message);
+      _showMessage(_locationErrorMessage(error));
     } catch (_) {
-      _showMessage('Non riesco a leggere la posizione ora');
+      _showMessage(context.l10n.locationReadError);
     } finally {
       if (mounted) {
         setState(() => _locating = false);
@@ -218,11 +309,11 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
         _userPosition = parkingSpot.latLng;
       });
       await _animateTo(parkingSpot.latLng);
-      _showMessage('Posizione parcheggio salvata');
+      _showMessage(context.l10n.parkingSaved);
     } on LocationException catch (error) {
-      _showMessage(error.message);
+      _showMessage(_locationErrorMessage(error));
     } catch (_) {
-      _showMessage('Non riesco a salvare il parcheggio ora');
+      _showMessage(context.l10n.parkingSaveError);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -243,10 +334,10 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
         parkingSpot.latLng,
       );
       if (!opened) {
-        _showMessage('Non riesco ad aprire Google Maps');
+        _showMessage(context.l10n.googleMapsOpenError);
       }
     } catch (_) {
-      _showMessage('Non riesco ad aprire Google Maps');
+      _showMessage(context.l10n.googleMapsOpenError);
     } finally {
       if (mounted) {
         setState(() => _openingRoute = false);
@@ -266,6 +357,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
         builder: (context) => PrivacyPermissionsPage(
           initialSettings: _settings,
           settingsService: _settingsService,
+          languageController: widget.languageController,
           permissionService: _permissionService,
           detectionService: _detectionService,
         ),
@@ -289,7 +381,31 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  String _languageSubtitle(AppLocalizations l10n) {
+    final selectedLanguage = widget.languageController.languageCode;
+    if (selectedLanguage == null) {
+      return l10n.languageSystem;
+    }
+
+    for (final option in supportedLanguageOptions) {
+      if (option.code == selectedLanguage) {
+        return '${option.flag} ${option.nativeName} (${option.code})';
+      }
+    }
+
+    return selectedLanguage;
+  }
+
+  String _locationErrorMessage(LocationException error) {
+    return switch (error.code) {
+      LocationExceptionCode.gpsDisabled => context.l10n.gpsDisabledError,
+      LocationExceptionCode.permissionDenied =>
+        context.l10n.locationPermissionDeniedError,
+    };
+  }
+
   Set<Marker> get _markers {
+    final l10n = context.l10n;
     final markers = <Marker>{};
     final userPosition = _userPosition;
     final parkingSpot = _parkingSpot;
@@ -302,7 +418,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
           icon: BitmapDescriptor.defaultMarkerWithHue(
             BitmapDescriptor.hueAzure,
           ),
-          infoWindow: const InfoWindow(title: 'Tu sei qui'),
+          infoWindow: InfoWindow(title: l10n.youAreHere),
         ),
       );
     }
@@ -313,7 +429,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
           markerId: const MarkerId('parked_car'),
           position: parkingSpot.latLng,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: const InfoWindow(title: 'Auto parcheggiata'),
+          infoWindow: InfoWindow(title: l10n.parkedCar),
         ),
       );
     }
@@ -330,12 +446,14 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AutoQui'),
+        title: Text(l10n.appTitle),
         actions: [
           IconButton(
-            tooltip: 'Privacy e permessi',
+            tooltip: l10n.settingsTooltip,
             onPressed: _settingsLoaded ? _openPrivacyAndPermissions : null,
             icon: const Icon(Icons.settings_outlined),
           ),
@@ -407,45 +525,35 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
 }
 
 Future<bool> showParkingDisclosureDialog(BuildContext context) async {
+  final l10n = context.l10n;
   final accepted = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (context) {
       return AlertDialog(
         icon: const Icon(Icons.privacy_tip_outlined),
-        title: const Text('Rilevamento automatico parcheggio'),
-        content: const SingleChildScrollView(
+        title: Text(l10n.disclosureTitle),
+        content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'AutoQui usa la posizione anche quando l\'app non e aperta '
-                'per rilevare automaticamente quando parcheggi l\'auto e '
-                'aiutarti a ritrovarla.',
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Per questa funzione l\'app usa la posizione in background, '
-                'Activity Recognition per capire quando scendi dall\'auto e '
-                'notifiche locali per chiederti se vuoi salvare il parcheggio.',
-              ),
-              SizedBox(height: 12),
-              Text(
-                'I dati restano sul dispositivo e non vengono inviati a server '
-                'AutoQui.',
-              ),
+              Text(l10n.disclosureBodyLocation),
+              const SizedBox(height: 12),
+              Text(l10n.disclosureBodyPermissions),
+              const SizedBox(height: 12),
+              Text(l10n.disclosureBodyLocalData),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Annulla'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Continua'),
+            child: Text(l10n.continueAction),
           ),
         ],
       );
@@ -460,12 +568,14 @@ class PrivacyPermissionsPage extends StatefulWidget {
     super.key,
     required this.initialSettings,
     required this.settingsService,
+    required this.languageController,
     required this.permissionService,
     required this.detectionService,
   });
 
   final AppSettings initialSettings;
   final AppSettingsService settingsService;
+  final LanguageController languageController;
   final PermissionService permissionService;
   final ParkingDetectionService detectionService;
 
@@ -507,7 +617,7 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
         _settings = _settings.copyWith(automaticDetectionEnabled: true);
       });
     } catch (_) {
-      _showMessage('Non riesco ad aggiornare il rilevamento automatico');
+      _showMessage(context.l10n.automaticDetectionUpdateError);
     } finally {
       if (mounted) {
         setState(() => _updatingDetection = false);
@@ -527,7 +637,7 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
         _settings = _settings.copyWith(notificationsEnabled: enabled);
       });
     } catch (_) {
-      _showMessage('Non riesco ad aggiornare le notifiche');
+      _showMessage(context.l10n.notificationsUpdateError);
     } finally {
       if (mounted) {
         setState(() => _updatingNotifications = false);
@@ -536,16 +646,75 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
   }
 
   Future<void> _showPrivacyPolicy() async {
-    final policy = await rootBundle.loadString('docs/privacy_policy.md');
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => const PrivacyPolicyPage(),
+      ),
+    );
+  }
+
+  Future<void> _chooseLanguage() async {
+    const systemLanguageValue = 'system';
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final l10n = context.l10n;
+        final currentCode = widget.languageController.languageCode;
+        final groupValue = currentCode ?? systemLanguageValue;
+
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                title: Text(
+                  l10n.languageTitle,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+              RadioListTile<String>(
+                value: systemLanguageValue,
+                groupValue: groupValue,
+                secondary: const Text('🌐', style: TextStyle(fontSize: 24)),
+                title: Text(l10n.languageSystem),
+                subtitle: const Text('system'),
+                onChanged: (value) => Navigator.of(context).pop(value),
+              ),
+              for (final option in supportedLanguageOptions)
+                RadioListTile<String>(
+                  value: option.code,
+                  groupValue: groupValue,
+                  secondary: Text(
+                    option.flag,
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                  title: Text(option.nativeName),
+                  subtitle: Text(option.code),
+                  onChanged: (value) => Navigator.of(context).pop(value),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+
     if (!mounted) {
       return;
     }
 
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (context) => PrivacyPolicyPage(policy: policy),
-      ),
-    );
+    if (selected == null) {
+      return;
+    }
+
+    final languageCode = selected == systemLanguageValue ? null : selected;
+    await widget.languageController.setLanguageCode(languageCode);
+    setState(() {
+      _settings = _settings.copyWith(
+        languageCode: languageCode,
+        clearLanguageCode: languageCode == null,
+      );
+    });
   }
 
   void _showBatteryInfo() {
@@ -553,31 +722,26 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
       context: context,
       showDragHandle: true,
       builder: (context) {
-        return const SafeArea(
+        final l10n = context.l10n;
+
+        return SafeArea(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Batteria e background',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                  l10n.batteryBackgroundInfo,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                SizedBox(height: 12),
-                Text(
-                  'Per funzionare correttamente, alcuni dispositivi Android '
-                  'potrebbero limitare il funzionamento in background di '
-                  'AutoQui.',
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'Su dispositivi Samsung, Xiaomi, Oppo, Realme, Huawei e '
-                  'altri produttori, le impostazioni di risparmio energetico '
-                  'possono ritardare o bloccare il rilevamento automatico. '
-                  'Se la funzione non e affidabile, controlla le impostazioni '
-                  'batteria e avvio in background del dispositivo.',
-                ),
+                const SizedBox(height: 12),
+                Text(l10n.batterySheetBody1),
+                const SizedBox(height: 12),
+                Text(l10n.batterySheetBody2),
               ],
             ),
           ),
@@ -598,6 +762,9 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final languageSubtitle = _languageSubtitle(l10n);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -607,9 +774,9 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Privacy e Permessi'),
+          title: Text(l10n.privacyPermissionsTitle),
           leading: IconButton(
-            tooltip: 'Indietro',
+            tooltip: l10n.back,
             onPressed: () => Navigator.of(context).pop(_settings),
             icon: const Icon(Icons.arrow_back),
           ),
@@ -617,70 +784,61 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            const _InfoBlock(
+            _InfoBlock(
               icon: Icons.location_on_outlined,
-              title: 'Posizione in background',
-              body:
-                  'AutoQui puo usare la posizione anche quando l\'app non e '
-                  'aperta per rilevare un possibile parcheggio e aiutarti a '
-                  'ritrovare l\'auto.',
+              title: l10n.backgroundLocationTitle,
+              body: l10n.backgroundLocationBody,
             ),
-            const _InfoBlock(
+            _InfoBlock(
               icon: Icons.directions_car_filled_outlined,
-              title: 'Rilevamento automatico',
-              body:
-                  'Activity Recognition aiuta a capire quando passi dalla '
-                  'guida alla camminata o alla sosta. Quando succede, AutoQui '
-                  'prepara una posizione candidata e ti chiede conferma.',
+              title: l10n.automaticDetectionTitle,
+              body: l10n.automaticDetectionBody,
             ),
-            const _InfoBlock(
+            _InfoBlock(
               icon: Icons.notifications_outlined,
-              title: 'Notifiche',
-              body:
-                  'Le notifiche sono locali e servono per chiederti se vuoi '
-                  'salvare o ignorare un parcheggio rilevato.',
+              title: l10n.notificationsTitle,
+              body: l10n.notificationsBody,
             ),
-            const _InfoBlock(
+            _InfoBlock(
               icon: Icons.battery_saver_outlined,
-              title: 'Batteria',
-              body:
-                  'Alcuni dispositivi Android possono limitare le attivita in '
-                  'background. AutoQui non chiede subito di disattivare queste '
-                  'ottimizzazioni, ma ti informa se il rilevamento non e stabile.',
+              title: l10n.batteryTitle,
+              body: l10n.batteryBody,
             ),
             const SizedBox(height: 8),
             SwitchListTile(
               secondary: const Icon(Icons.route_outlined),
-              title: const Text('Rilevamento automatico'),
-              subtitle: const Text(
-                'Usa posizione in background e Activity Recognition.',
-              ),
+              title: Text(l10n.automaticDetectionTitle),
+              subtitle: Text(l10n.automaticDetectionSwitchSubtitle),
               value: _settings.automaticDetectionEnabled,
               onChanged: _updatingDetection ? null : _setAutomaticDetection,
             ),
             SwitchListTile(
               secondary: const Icon(Icons.notifications_active_outlined),
-              title: const Text('Notifiche'),
-              subtitle: const Text(
-                'Mostra avvisi locali di possibile parcheggio.',
-              ),
+              title: Text(l10n.notificationsTitle),
+              subtitle: Text(l10n.notificationsSwitchSubtitle),
               value: _settings.notificationsEnabled,
               onChanged: _updatingNotifications ? null : _setNotifications,
+            ),
+            ListTile(
+              leading: const Icon(Icons.language_outlined),
+              title: Text(l10n.languageTitle),
+              subtitle: Text(languageSubtitle),
+              onTap: _chooseLanguage,
             ),
             const Divider(height: 24),
             ListTile(
               leading: const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Mostra privacy policy'),
+              title: Text(l10n.showPrivacyPolicy),
               onTap: _showPrivacyPolicy,
             ),
             ListTile(
               leading: const Icon(Icons.battery_alert_outlined),
-              title: const Text('Info batteria e background'),
+              title: Text(l10n.batteryBackgroundInfo),
               onTap: _showBatteryInfo,
             ),
             ListTile(
               leading: const Icon(Icons.info_outline),
-              title: const Text('Mostra informativa permessi'),
+              title: Text(l10n.showPermissionsDisclosure),
               onTap: () => showParkingDisclosureDialog(context),
             ),
           ],
@@ -713,17 +871,17 @@ class _InfoBlock extends StatelessWidget {
 }
 
 class PrivacyPolicyPage extends StatelessWidget {
-  const PrivacyPolicyPage({super.key, required this.policy});
-
-  final String policy;
+  const PrivacyPolicyPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Privacy Policy')),
+      appBar: AppBar(title: Text(l10n.privacyPolicyTitle)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: SelectableText(policy),
+        child: SelectableText(l10n.privacyPolicyText),
       ),
     );
   }
@@ -751,6 +909,7 @@ class _ParkingActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = context.l10n;
 
     return Material(
       elevation: 10,
@@ -770,7 +929,7 @@ class _ParkingActions extends StatelessWidget {
                     icon: locating
                         ? const _ButtonProgress()
                         : const Icon(Icons.my_location),
-                    label: const Text('Localizza'),
+                    label: Text(l10n.locate),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -780,7 +939,7 @@ class _ParkingActions extends StatelessWidget {
                     icon: saving
                         ? const _ButtonProgress()
                         : const Icon(Icons.local_parking),
-                    label: const Text('Salva parcheggio'),
+                    label: Text(l10n.saveParking),
                   ),
                 ),
               ],
@@ -790,7 +949,7 @@ class _ParkingActions extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Ultimo parcheggio salvato: ${_formatSavedAt(parkingSpot!.savedAt)}',
+                  l10n.lastParkingSaved(_formatSavedAt(parkingSpot!.savedAt)),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -807,7 +966,7 @@ class _ParkingActions extends StatelessWidget {
                   icon: openingRoute
                       ? const _ButtonProgress()
                       : const Icon(Icons.directions_walk),
-                  label: const Text("Vai all'auto"),
+                  label: Text(l10n.goToCar),
                 ),
               ),
             ],

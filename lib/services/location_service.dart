@@ -6,7 +6,7 @@ class LocationService {
   Future<Position?> getCurrentPosition() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw const LocationException('Attiva il GPS per usare AutoQui');
+      throw const LocationException(LocationExceptionCode.gpsDisabled);
     }
 
     var permission = await Geolocator.checkPermission();
@@ -16,7 +16,7 @@ class LocationService {
 
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
-      throw const LocationException('Permesso posizione non concesso');
+      throw const LocationException(LocationExceptionCode.permissionDenied);
     }
 
     return Geolocator.getCurrentPosition();
@@ -33,7 +33,9 @@ class LocationService {
 }
 
 class LocationException implements Exception {
-  const LocationException(this.message);
+  const LocationException(this.code);
 
-  final String message;
+  final LocationExceptionCode code;
 }
+
+enum LocationExceptionCode { gpsDisabled, permissionDenied }

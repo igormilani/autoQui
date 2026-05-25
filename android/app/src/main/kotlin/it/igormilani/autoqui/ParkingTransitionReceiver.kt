@@ -101,12 +101,20 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
             ParkingDetectionService.CHANNEL_ID
         )
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Nuovo parcheggio rilevato")
-            .setContentText("AutoQui pensa che tu abbia parcheggiato. Vuoi salvare questa posizione?")
+            .setContentTitle(context.getString(R.string.parking_detected_title))
+            .setContentText(context.getString(R.string.parking_detected_text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .addAction(R.mipmap.ic_launcher, "Salva", savePendingIntent)
-            .addAction(R.mipmap.ic_launcher, "Ignora", ignorePendingIntent)
+            .addAction(
+                R.mipmap.ic_launcher,
+                context.getString(R.string.parking_action_save),
+                savePendingIntent
+            )
+            .addAction(
+                R.mipmap.ic_launcher,
+                context.getString(R.string.parking_action_ignore),
+                ignorePendingIntent
+            )
             .build()
 
         NotificationManagerCompat.from(context).notify(PARKING_NOTIFICATION_ID, notification)

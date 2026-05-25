@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AutoQui</string>
+    <string name="parking_channel_name">AutoQui parking</string>
+    <string name="parking_service_title">AutoQui active</string>
+    <string name="parking_service_text">Background parking detection</string>
+    <string name="parking_detected_title">New parking detected</string>
+    <string name="parking_detected_text">AutoQui thinks you parked. Save this position?</string>
+    <string name="parking_action_save">Save</string>
+    <string name="parking_action_ignore">Ignore</string>
 </resources>

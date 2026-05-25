@@ -76,8 +76,8 @@ class ParkingDetectionService : Service() {
     private fun foregroundNotification() =
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("AutoQui attivo")
-            .setContentText("Rilevamento parcheggio in background")
+            .setContentTitle(getString(R.string.parking_service_title))
+            .setContentText(getString(R.string.parking_service_text))
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
@@ -99,7 +99,7 @@ class ParkingDetectionService : Service() {
 
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "AutoQui parcheggio",
+            getString(R.string.parking_channel_name),
             NotificationManager.IMPORTANCE_LOW
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)

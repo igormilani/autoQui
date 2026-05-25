@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoQui</string>
+    <string name="parking_channel_name">AutoQui parcheggio</string>
+    <string name="parking_service_title">AutoQui attivo</string>
+    <string name="parking_service_text">Rilevamento parcheggio in background</string>
+    <string name="parking_detected_title">Nuovo parcheggio rilevato</string>
+    <string name="parking_detected_text">AutoQui pensa che tu abbia parcheggiato. Vuoi salvare questa posizione?</string>
+    <string name="parking_action_save">Salva</string>
+    <string name="parking_action_ignore">Ignora</string>
+</resources>
