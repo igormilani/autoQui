@@ -8,7 +8,7 @@
 PRODUCT_NAME = auto_qui
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.autoQui
+PRODUCT_BUNDLE_IDENTIFIER = it.igormilani.autoqui
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 it.igormilani. All rights reserved.

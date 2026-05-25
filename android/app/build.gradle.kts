@@ -1,3 +1,12 @@
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -6,7 +15,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.auto_qui"
+    namespace = "it.igormilani.autoqui"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,13 +30,16 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.auto_qui"
+        applicationId = "it.igormilani.autoqui"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] =
+            project.findProperty("GOOGLE_MAPS_API_KEY") as String?
+                ?: localProperties.getProperty("GOOGLE_MAPS_API_KEY", "")
     }
 
     buildTypes {
@@ -41,4 +53,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
