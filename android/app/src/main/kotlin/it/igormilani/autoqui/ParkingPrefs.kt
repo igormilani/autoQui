@@ -1,4 +1,4 @@
-package com.example.auto_qui
+package it.igormilani.autoqui
 
 import android.content.Context
 
@@ -8,6 +8,8 @@ object ParkingPrefs {
     private const val LNG_KEY = "flutter.parking_lng"
     private const val SAVED_AT_KEY = "flutter.parking_saved_at"
     private const val IGNORED_AT_KEY = "flutter.ignored_detection_at"
+    private const val AUTOMATIC_DETECTION_ENABLED_KEY = "flutter.automatic_detection_enabled"
+    private const val NOTIFICATIONS_ENABLED_KEY = "flutter.notifications_enabled"
     private const val CANDIDATE_LAT_KEY = "candidate_parking_lat"
     private const val CANDIDATE_LNG_KEY = "candidate_parking_lng"
     private const val CANDIDATE_AT_KEY = "candidate_parking_at"
@@ -54,6 +56,16 @@ object ParkingPrefs {
         val ignoredAt = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getLong(IGNORED_AT_KEY, 0L)
         return System.currentTimeMillis() - ignoredAt < 15 * 60 * 1000
+    }
+
+    fun automaticDetectionEnabled(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(AUTOMATIC_DETECTION_ENABLED_KEY, true)
+    }
+
+    fun notificationsEnabled(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(NOTIFICATIONS_ENABLED_KEY, true)
     }
 
     fun parking(context: Context): Pair<Double, Double>? {

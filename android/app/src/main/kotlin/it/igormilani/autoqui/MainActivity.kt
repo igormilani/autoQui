@@ -1,4 +1,4 @@
-package com.example.auto_qui
+package it.igormilani.autoqui
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine

@@ -1,4 +1,4 @@
-package com.example.auto_qui
+package it.igormilani.autoqui
 
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
@@ -17,7 +17,7 @@ class ParkingNotificationActionReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val ACTION_SAVE = "com.example.auto_qui.action.SAVE_PARKING"
-        const val ACTION_IGNORE = "com.example.auto_qui.action.IGNORE_PARKING"
+        const val ACTION_SAVE = "it.igormilani.autoqui.action.SAVE_PARKING"
+        const val ACTION_IGNORE = "it.igormilani.autoqui.action.IGNORE_PARKING"
     }
 }

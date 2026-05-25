@@ -1,4 +1,4 @@
-package com.example.auto_qui
+package it.igormilani.autoqui
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager

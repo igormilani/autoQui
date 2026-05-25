@@ -1,4 +1,4 @@
-package com.example.auto_qui
+package it.igormilani.autoqui
 
 import android.Manifest
 import android.app.NotificationManager
@@ -35,7 +35,10 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
     }
 
     private fun handlePossibleParking(context: Context) {
-        if (ParkingPrefs.recentlyIgnored(context) || !hasLocationPermission(context)) {
+        if (!ParkingPrefs.automaticDetectionEnabled(context) ||
+            ParkingPrefs.recentlyIgnored(context) ||
+            !hasLocationPermission(context)
+        ) {
             return
         }
 
@@ -57,6 +60,10 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
     }
 
     private fun showParkingNotification(context: Context) {
+        if (!ParkingPrefs.notificationsEnabled(context)) {
+            return
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
                 context,

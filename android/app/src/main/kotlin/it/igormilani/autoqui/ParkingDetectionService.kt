@@ -1,4 +1,4 @@
-package com.example.auto_qui
+package it.igormilani.autoqui
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -37,6 +37,11 @@ class ParkingDetectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun registerTransitions() {
+        if (!ParkingPrefs.automaticDetectionEnabled(this)) {
+            stopSelf()
+            return
+        }
+
         if (!hasActivityPermission()) {
             return
         }

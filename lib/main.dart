@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'models/parking_spot.dart';
+import 'services/app_settings_service.dart';
 import 'services/ads_service.dart';
 import 'services/location_service.dart';
 import 'services/navigation_service.dart';
@@ -58,21 +60,53 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
   final _navigationService = NavigationService();
   final _detectionService = ParkingDetectionService();
   final _permissionService = PermissionService();
+  final _settingsService = AppSettingsService();
 
   GoogleMapController? _mapController;
   StreamSubscription? _positionSubscription;
   ParkingSpot? _parkingSpot;
+  AppSettings _settings = const AppSettings(
+    automaticDetectionEnabled: true,
+    notificationsEnabled: true,
+    prominentDisclosureAccepted: false,
+  );
   LatLng? _userPosition;
   bool _locating = false;
   bool _saving = false;
   bool _openingRoute = false;
+  bool _settingsLoaded = false;
 
   @override
   void initState() {
     super.initState();
+    _loadSettingsAndStartDetection();
     _loadSavedParking();
-    _startParkingDetection();
     _startUserPositionUpdates();
+  }
+
+  Future<void> _loadSettingsAndStartDetection() async {
+    final settings = await _settingsService.load();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _settings = settings;
+      _settingsLoaded = true;
+    });
+
+    if (!settings.prominentDisclosureAccepted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showInitialDisclosure();
+        }
+      });
+      return;
+    }
+
+    if (settings.automaticDetectionEnabled) {
+      await _startParkingDetection();
+    }
   }
 
   Future<void> _loadSavedParking() async {
@@ -91,6 +125,29 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       await _detectionService.start();
     } catch (_) {
       // Detection is best-effort: manual parking save remains fully usable.
+    }
+  }
+
+  Future<void> _showInitialDisclosure() async {
+    final accepted = await showParkingDisclosureDialog(context);
+    if (!mounted) {
+      return;
+    }
+
+    if (!accepted) {
+      await _settingsService.setAutomaticDetectionEnabled(false);
+      setState(() {
+        _settings = _settings.copyWith(automaticDetectionEnabled: false);
+      });
+      return;
+    }
+
+    await _settingsService.acceptProminentDisclosure();
+    final updated = _settings.copyWith(prominentDisclosureAccepted: true);
+    setState(() => _settings = updated);
+
+    if (updated.automaticDetectionEnabled) {
+      await _startParkingDetection();
     }
   }
 
@@ -203,26 +260,23 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
     );
   }
 
-  void _showPrivacyInfo() {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Privacy AutoQui'),
-          content: const Text(
-            'AutoQui usa la posizione esclusivamente per aiutarti a '
-            "ritrovare l'auto parcheggiata. I dati restano sul dispositivo "
-            'e non vengono inviati a server.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
+  Future<void> _openPrivacyAndPermissions() async {
+    final updated = await Navigator.of(context).push<AppSettings>(
+      MaterialPageRoute(
+        builder: (context) => PrivacyPermissionsPage(
+          initialSettings: _settings,
+          settingsService: _settingsService,
+          permissionService: _permissionService,
+          detectionService: _detectionService,
+        ),
+      ),
     );
+
+    if (!mounted || updated == null) {
+      return;
+    }
+
+    setState(() => _settings = updated);
   }
 
   void _showMessage(String message) {
@@ -281,9 +335,9 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
         title: const Text('AutoQui'),
         actions: [
           IconButton(
-            tooltip: 'Privacy',
-            onPressed: _showPrivacyInfo,
-            icon: const Icon(Icons.privacy_tip_outlined),
+            tooltip: 'Privacy e permessi',
+            onPressed: _settingsLoaded ? _openPrivacyAndPermissions : null,
+            icon: const Icon(Icons.settings_outlined),
           ),
         ],
       ),
@@ -347,6 +401,329 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+Future<bool> showParkingDisclosureDialog(BuildContext context) async {
+  final accepted = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return AlertDialog(
+        icon: const Icon(Icons.privacy_tip_outlined),
+        title: const Text('Rilevamento automatico parcheggio'),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AutoQui usa la posizione anche quando l\'app non e aperta '
+                'per rilevare automaticamente quando parcheggi l\'auto e '
+                'aiutarti a ritrovarla.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Per questa funzione l\'app usa la posizione in background, '
+                'Activity Recognition per capire quando scendi dall\'auto e '
+                'notifiche locali per chiederti se vuoi salvare il parcheggio.',
+              ),
+              SizedBox(height: 12),
+              Text(
+                'I dati restano sul dispositivo e non vengono inviati a server '
+                'AutoQui.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Annulla'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Continua'),
+          ),
+        ],
+      );
+    },
+  );
+
+  return accepted ?? false;
+}
+
+class PrivacyPermissionsPage extends StatefulWidget {
+  const PrivacyPermissionsPage({
+    super.key,
+    required this.initialSettings,
+    required this.settingsService,
+    required this.permissionService,
+    required this.detectionService,
+  });
+
+  final AppSettings initialSettings;
+  final AppSettingsService settingsService;
+  final PermissionService permissionService;
+  final ParkingDetectionService detectionService;
+
+  @override
+  State<PrivacyPermissionsPage> createState() => _PrivacyPermissionsPageState();
+}
+
+class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
+  late AppSettings _settings = widget.initialSettings;
+  bool _updatingDetection = false;
+  bool _updatingNotifications = false;
+
+  Future<void> _setAutomaticDetection(bool enabled) async {
+    setState(() => _updatingDetection = true);
+
+    try {
+      if (!enabled) {
+        await widget.settingsService.setAutomaticDetectionEnabled(false);
+        await widget.detectionService.stop();
+        setState(() {
+          _settings = _settings.copyWith(automaticDetectionEnabled: false);
+        });
+        return;
+      }
+
+      if (!_settings.prominentDisclosureAccepted) {
+        final accepted = await showParkingDisclosureDialog(context);
+        if (!accepted) {
+          return;
+        }
+        await widget.settingsService.acceptProminentDisclosure();
+        _settings = _settings.copyWith(prominentDisclosureAccepted: true);
+      }
+
+      await widget.settingsService.setAutomaticDetectionEnabled(true);
+      await widget.permissionService.requestParkingDetectionPermissions();
+      await widget.detectionService.start();
+      setState(() {
+        _settings = _settings.copyWith(automaticDetectionEnabled: true);
+      });
+    } catch (_) {
+      _showMessage('Non riesco ad aggiornare il rilevamento automatico');
+    } finally {
+      if (mounted) {
+        setState(() => _updatingDetection = false);
+      }
+    }
+  }
+
+  Future<void> _setNotifications(bool enabled) async {
+    setState(() => _updatingNotifications = true);
+
+    try {
+      await widget.settingsService.setNotificationsEnabled(enabled);
+      if (enabled) {
+        await widget.permissionService.requestNotificationPermission();
+      }
+      setState(() {
+        _settings = _settings.copyWith(notificationsEnabled: enabled);
+      });
+    } catch (_) {
+      _showMessage('Non riesco ad aggiornare le notifiche');
+    } finally {
+      if (mounted) {
+        setState(() => _updatingNotifications = false);
+      }
+    }
+  }
+
+  Future<void> _showPrivacyPolicy() async {
+    final policy = await rootBundle.loadString('docs/privacy_policy.md');
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (context) => PrivacyPolicyPage(policy: policy),
+      ),
+    );
+  }
+
+  void _showBatteryInfo() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return const SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(24, 8, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Batteria e background',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Per funzionare correttamente, alcuni dispositivi Android '
+                  'potrebbero limitare il funzionamento in background di '
+                  'AutoQui.',
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Su dispositivi Samsung, Xiaomi, Oppo, Realme, Huawei e '
+                  'altri produttori, le impostazioni di risparmio energetico '
+                  'possono ritardare o bloccare il rilevamento automatico. '
+                  'Se la funzione non e affidabile, controlla le impostazioni '
+                  'batteria e avvio in background del dispositivo.',
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          Navigator.of(context).pop(_settings);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Privacy e Permessi'),
+          leading: IconButton(
+            tooltip: 'Indietro',
+            onPressed: () => Navigator.of(context).pop(_settings),
+            icon: const Icon(Icons.arrow_back),
+          ),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            const _InfoBlock(
+              icon: Icons.location_on_outlined,
+              title: 'Posizione in background',
+              body:
+                  'AutoQui puo usare la posizione anche quando l\'app non e '
+                  'aperta per rilevare un possibile parcheggio e aiutarti a '
+                  'ritrovare l\'auto.',
+            ),
+            const _InfoBlock(
+              icon: Icons.directions_car_filled_outlined,
+              title: 'Rilevamento automatico',
+              body:
+                  'Activity Recognition aiuta a capire quando passi dalla '
+                  'guida alla camminata o alla sosta. Quando succede, AutoQui '
+                  'prepara una posizione candidata e ti chiede conferma.',
+            ),
+            const _InfoBlock(
+              icon: Icons.notifications_outlined,
+              title: 'Notifiche',
+              body:
+                  'Le notifiche sono locali e servono per chiederti se vuoi '
+                  'salvare o ignorare un parcheggio rilevato.',
+            ),
+            const _InfoBlock(
+              icon: Icons.battery_saver_outlined,
+              title: 'Batteria',
+              body:
+                  'Alcuni dispositivi Android possono limitare le attivita in '
+                  'background. AutoQui non chiede subito di disattivare queste '
+                  'ottimizzazioni, ma ti informa se il rilevamento non e stabile.',
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              secondary: const Icon(Icons.route_outlined),
+              title: const Text('Rilevamento automatico'),
+              subtitle: const Text(
+                'Usa posizione in background e Activity Recognition.',
+              ),
+              value: _settings.automaticDetectionEnabled,
+              onChanged: _updatingDetection ? null : _setAutomaticDetection,
+            ),
+            SwitchListTile(
+              secondary: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Notifiche'),
+              subtitle: const Text(
+                'Mostra avvisi locali di possibile parcheggio.',
+              ),
+              value: _settings.notificationsEnabled,
+              onChanged: _updatingNotifications ? null : _setNotifications,
+            ),
+            const Divider(height: 24),
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined),
+              title: const Text('Mostra privacy policy'),
+              onTap: _showPrivacyPolicy,
+            ),
+            ListTile(
+              leading: const Icon(Icons.battery_alert_outlined),
+              title: const Text('Info batteria e background'),
+              onTap: _showBatteryInfo,
+            ),
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: const Text('Mostra informativa permessi'),
+              onTap: () => showParkingDisclosureDialog(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoBlock extends StatelessWidget {
+  const _InfoBlock({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(body),
+    );
+  }
+}
+
+class PrivacyPolicyPage extends StatelessWidget {
+  const PrivacyPolicyPage({super.key, required this.policy});
+
+  final String policy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Privacy Policy')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: SelectableText(policy),
       ),
     );
   }
