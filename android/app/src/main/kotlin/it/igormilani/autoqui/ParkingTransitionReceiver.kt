@@ -25,11 +25,15 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
                 return@forEach
             }
 
-            if (event.activityType == DetectedActivity.ON_FOOT ||
-                event.activityType == DetectedActivity.WALKING ||
-                event.activityType == DetectedActivity.STILL
-            ) {
-                handlePossibleParking(context)
+            when (event.activityType) {
+                DetectedActivity.IN_VEHICLE -> {
+                    ParkingPrefs.markInVehicle(context, System.currentTimeMillis())
+                }
+                DetectedActivity.ON_FOOT,
+                DetectedActivity.WALKING -> {
+                    handlePossibleParking(context)
+                }
+                else -> Unit
             }
         }
     }
@@ -37,6 +41,7 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
     private fun handlePossibleParking(context: Context) {
         if (!ParkingPrefs.automaticDetectionEnabled(context) ||
             ParkingPrefs.recentlyIgnored(context) ||
+            !ParkingPrefs.canCreateParkingCandidate(context, System.currentTimeMillis()) ||
             !hasLocationPermission(context)
         ) {
             return
@@ -96,12 +101,20 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
             ParkingDetectionService.CHANNEL_ID
         )
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Nuovo parcheggio rilevato")
-            .setContentText("AutoQui pensa che tu abbia parcheggiato. Vuoi salvare questa posizione?")
+            .setContentTitle(context.getString(R.string.parking_detected_title))
+            .setContentText(context.getString(R.string.parking_detected_text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .addAction(R.mipmap.ic_launcher, "Salva", savePendingIntent)
-            .addAction(R.mipmap.ic_launcher, "Ignora", ignorePendingIntent)
+            .addAction(
+                R.mipmap.ic_launcher,
+                context.getString(R.string.parking_action_save),
+                savePendingIntent
+            )
+            .addAction(
+                R.mipmap.ic_launcher,
+                context.getString(R.string.parking_action_ignore),
+                ignorePendingIntent
+            )
             .build()
 
         NotificationManagerCompat.from(context).notify(PARKING_NOTIFICATION_ID, notification)
