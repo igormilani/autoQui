@@ -823,7 +823,7 @@ class _ParkingActions extends StatelessWidget {
     final month = local.month.toString().padLeft(2, '0');
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
-    return '$day/$month ${hour}:$minute';
+    return '$day/$month $hour:$minute';
   }
 }
 
