@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -368,6 +369,24 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
     setState(() => _settings = updated);
   }
 
+  Future<void> _setLanguageFromHeader(String value) async {
+    final languageCode = value == _AutoQuiHeader.systemLanguageValue
+        ? null
+        : value;
+
+    await widget.languageController.setLanguageCode(languageCode);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _settings = _settings.copyWith(
+        languageCode: languageCode,
+        clearLanguageCode: languageCode == null,
+      );
+    });
+  }
+
   void _showMessage(String message) {
     if (!mounted) {
       return;
@@ -428,18 +447,14 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.appTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.settingsTooltip,
-            onPressed: _settingsLoaded ? _openPrivacyAndPermissions : null,
-            icon: const Icon(Icons.settings_outlined),
-          ),
-        ],
+      appBar: _AutoQuiHeader(
+        parkingSpot: _parkingSpot,
+        userPosition: _userPosition,
+        languageController: widget.languageController,
+        settingsLoaded: _settingsLoaded,
+        onSettingsPressed: _openPrivacyAndPermissions,
+        onLanguageSelected: _setLanguageFromHeader,
       ),
       body: Stack(
         children: [
@@ -503,6 +518,304 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
         ],
       ),
     );
+  }
+}
+
+class _AutoQuiHeader extends StatelessWidget implements PreferredSizeWidget {
+  const _AutoQuiHeader({
+    required this.parkingSpot,
+    required this.userPosition,
+    required this.languageController,
+    required this.settingsLoaded,
+    required this.onSettingsPressed,
+    required this.onLanguageSelected,
+  });
+
+  static const height = 84.0;
+  static const systemLanguageValue = 'system';
+
+  final ParkingSpot? parkingSpot;
+  final LatLng? userPosition;
+  final LanguageController languageController;
+  final bool settingsLoaded;
+  final VoidCallback onSettingsPressed;
+  final ValueChanged<String> onLanguageSelected;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(height);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final currentLanguage = languageController.languageCode;
+    final selectedLanguage = currentLanguage ?? systemLanguageValue;
+    final foreground = isDark ? colorScheme.onSurface : colorScheme.onPrimary;
+
+    return Material(
+      color: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark
+              ? colorScheme.surfaceContainerHigh
+              : const Color(0xFF0E7C66),
+          borderRadius: const BorderRadius.vertical(
+            bottom: Radius.circular(22),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.14),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: height,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 10, 12),
+              child: Row(
+                children: [
+                  _AutoQuiLogo(isDark: isDark),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AutoQui',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: foreground,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          switchInCurve: Curves.easeOutCubic,
+                          switchOutCurve: Curves.easeInCubic,
+                          child: Text(
+                            _subtitle(context),
+                            key: ValueKey(_subtitle(context)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: foreground.withValues(alpha: 0.82),
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _HeaderLanguageMenu(
+                    selectedLanguage: selectedLanguage,
+                    foreground: foreground,
+                    onSelected: onLanguageSelected,
+                  ),
+                  IconButton(
+                    tooltip: context.l10n.settingsTooltip,
+                    onPressed: settingsLoaded ? onSettingsPressed : null,
+                    icon: const Icon(Icons.settings_outlined),
+                    color: foreground,
+                    disabledColor: foreground.withValues(alpha: 0.38),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _subtitle(BuildContext context) {
+    final spot = parkingSpot;
+    if (spot == null) {
+      return _emptySubtitle(context);
+    }
+
+    final position = userPosition;
+    if (position == null) {
+      return _savedSubtitle(context);
+    }
+
+    final meters = Geolocator.distanceBetween(
+      position.latitude,
+      position.longitude,
+      spot.latitude,
+      spot.longitude,
+    );
+
+    return _distanceSubtitle(context, meters);
+  }
+
+  String _emptySubtitle(BuildContext context) {
+    return switch (Localizations.localeOf(context).languageCode) {
+      'it' => 'Nessun parcheggio salvato',
+      'es' => 'Ningun aparcamiento guardado',
+      'fr' => 'Aucun stationnement enregistre',
+      'de' => 'Kein Parkplatz gespeichert',
+      'pl' => 'Brak zapisanego parkingu',
+      'pt' => 'Nenhum estacionamento guardado',
+      _ => 'No saved parking',
+    };
+  }
+
+  String _savedSubtitle(BuildContext context) {
+    return switch (Localizations.localeOf(context).languageCode) {
+      'it' => 'Auto salvata, distanza non disponibile',
+      'es' => 'Coche guardado, distancia no disponible',
+      'fr' => 'Voiture enregistree, distance indisponible',
+      'de' => 'Auto gespeichert, Entfernung nicht verfuegbar',
+      'pl' => 'Auto zapisane, odleglosc niedostepna',
+      'pt' => 'Carro guardado, distancia indisponivel',
+      _ => 'Car saved, distance unavailable',
+    };
+  }
+
+  String _distanceSubtitle(BuildContext context, double meters) {
+    final roundedMeters = meters.round();
+    final value = roundedMeters >= 1000
+        ? '${(roundedMeters / 1000).toStringAsFixed(1)} km'
+        : '$roundedMeters m';
+
+    return switch (Localizations.localeOf(context).languageCode) {
+      'it' => 'Auto a $value da te',
+      'es' => 'Coche a $value de ti',
+      'fr' => 'Voiture a $value de vous',
+      'de' => 'Auto $value entfernt',
+      'pl' => 'Auto $value od Ciebie',
+      'pt' => 'Carro a $value de si',
+      _ => 'Car $value away',
+    };
+  }
+}
+
+class _AutoQuiLogo extends StatelessWidget {
+  const _AutoQuiLogo({required this.isDark});
+
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF123F35) : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2DD4BF) : const Color(0xFFE5F6F2),
+        ),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(
+            Icons.directions_car_filled_outlined,
+            color: isDark ? const Color(0xFF7DD3C7) : const Color(0xFF0E7C66),
+            size: 27,
+          ),
+          Positioned(
+            right: 7,
+            bottom: 7,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF2DD4BF)
+                    : const Color(0xFFB7F2E5),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.place,
+                color: isDark
+                    ? const Color(0xFF07332B)
+                    : const Color(0xFF075E52),
+                size: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderLanguageMenu extends StatelessWidget {
+  const _HeaderLanguageMenu({
+    required this.selectedLanguage,
+    required this.foreground,
+    required this.onSelected,
+  });
+
+  final String selectedLanguage;
+  final Color foreground;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: context.l10n.languageTitle,
+      initialValue: selectedLanguage,
+      onSelected: onSelected,
+      icon: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: foreground.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: foreground.withValues(alpha: 0.14)),
+        ),
+        child: Text(
+          _languageEmoji(selectedLanguage),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontSize: 20,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: _AutoQuiHeader.systemLanguageValue,
+          child: Text('🌐 ${context.l10n.languageSystem}'),
+        ),
+        for (final option in supportedLanguageOptions)
+          PopupMenuItem<String>(
+            value: option.code,
+            child: Text(
+              '${option.flag} ${option.code.toUpperCase()} - ${option.nativeName}',
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _languageEmoji(String languageCode) {
+    if (languageCode == _AutoQuiHeader.systemLanguageValue) {
+      return '🌐';
+    }
+
+    for (final option in supportedLanguageOptions) {
+      if (option.code == languageCode) {
+        return option.flag;
+      }
+    }
+
+    return '🇬🇧';
   }
 }
 
