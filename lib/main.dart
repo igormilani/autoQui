@@ -781,7 +781,7 @@ class _HeaderLanguageMenu extends StatelessWidget {
           border: Border.all(color: foreground.withValues(alpha: 0.14)),
         ),
         child: Text(
-          _languageEmoji(selectedLanguage),
+          _languageEmoji(context, selectedLanguage),
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontSize: 20,
             letterSpacing: 0,
@@ -804,11 +804,15 @@ class _HeaderLanguageMenu extends StatelessWidget {
     );
   }
 
-  String _languageEmoji(String languageCode) {
+  String _languageEmoji(BuildContext context, String languageCode) {
     if (languageCode == _AutoQuiHeader.systemLanguageValue) {
-      return '🌐';
+      return _flagForLanguageCode(Localizations.localeOf(context).languageCode);
     }
 
+    return _flagForLanguageCode(languageCode);
+  }
+
+  String _flagForLanguageCode(String languageCode) {
     for (final option in supportedLanguageOptions) {
       if (option.code == languageCode) {
         return option.flag;
