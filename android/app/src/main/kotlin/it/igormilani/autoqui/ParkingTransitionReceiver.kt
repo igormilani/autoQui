@@ -7,14 +7,17 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.ActivityTransitionResult
+import com.google.android.gms.location.CancellationTokenSource
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 class ParkingTransitionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -28,6 +31,8 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
             when (event.activityType) {
                 DetectedActivity.IN_VEHICLE -> {
                     ParkingPrefs.markInVehicle(context, System.currentTimeMillis())
+                    context.getSystemService(NotificationManager::class.java)
+                        .cancel(PARKING_NOTIFICATION_ID)
                 }
                 DetectedActivity.ON_FOOT,
                 DetectedActivity.WALKING -> {
@@ -47,18 +52,25 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
             return
         }
 
-        LocationServices.getFusedLocationProviderClient(context)
-            .lastLocation
+        val locationClient = LocationServices.getFusedLocationProviderClient(context)
+        val cancellationTokenSource = CancellationTokenSource()
+        locationClient
+            .getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY,
+                cancellationTokenSource.token
+            )
             .addOnSuccessListener { location ->
-                if (location == null) {
+                val timestamp = System.currentTimeMillis()
+                val parkingLocation = location ?: return@addOnSuccessListener
+                if (!isUsableParkingLocation(parkingLocation, timestamp)) {
                     return@addOnSuccessListener
                 }
 
                 ParkingPrefs.saveCandidate(
                     context,
-                    location.latitude,
-                    location.longitude,
-                    System.currentTimeMillis()
+                    parkingLocation.latitude,
+                    parkingLocation.longitude,
+                    timestamp
                 )
                 showParkingNotification(context)
             }
@@ -120,6 +132,15 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
         NotificationManagerCompat.from(context).notify(PARKING_NOTIFICATION_ID, notification)
     }
 
+    private fun isUsableParkingLocation(location: Location, timestamp: Long): Boolean {
+        val locationAge = timestamp - location.time
+        if (locationAge < 0L || locationAge > MAX_LOCATION_AGE_MILLIS) {
+            return false
+        }
+
+        return !location.hasAccuracy() || location.accuracy <= MAX_LOCATION_ACCURACY_METERS
+    }
+
     private fun hasLocationPermission(context: Context): Boolean {
         return ContextCompat.checkSelfPermission(
             context,
@@ -133,5 +154,7 @@ class ParkingTransitionReceiver : BroadcastReceiver() {
 
     companion object {
         const val PARKING_NOTIFICATION_ID = 3002
+        private const val MAX_LOCATION_AGE_MILLIS = 90 * 1000L
+        private const val MAX_LOCATION_ACCURACY_METERS = 100f
     }
 }

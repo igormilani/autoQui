@@ -17,7 +17,7 @@ object ParkingPrefs {
 
     private const val MIN_VEHICLE_TIME_MILLIS = 2 * 60 * 1000L
     private const val MAX_VEHICLE_TIME_MILLIS = 6 * 60 * 60 * 1000L
-    private const val CANDIDATE_COOLDOWN_MILLIS = 10 * 60 * 1000L
+    private const val CANDIDATE_EXPIRY_MILLIS = 30 * 60 * 1000L
 
     fun saveCandidate(context: Context, latitude: Double, longitude: Double, timestamp: Long) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -32,18 +32,27 @@ object ParkingPrefs {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putLong(LAST_IN_VEHICLE_AT_KEY, timestamp)
+            .remove(CANDIDATE_LAT_KEY)
+            .remove(CANDIDATE_LNG_KEY)
+            .remove(CANDIDATE_AT_KEY)
             .apply()
     }
 
     fun saveCandidateAsParking(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (!prefs.contains(CANDIDATE_LAT_KEY) || !prefs.contains(CANDIDATE_LNG_KEY)) {
+        val candidateAt = prefs.getLong(CANDIDATE_AT_KEY, 0L)
+        if (!candidateIsFresh(candidateAt, System.currentTimeMillis()) ||
+            !prefs.contains(CANDIDATE_LAT_KEY) ||
+            !prefs.contains(CANDIDATE_LNG_KEY)
+        ) {
+            clearCandidate(context)
             return false
         }
 
         val latitude = prefs.getFloat(CANDIDATE_LAT_KEY, 0f).toDouble()
         val longitude = prefs.getFloat(CANDIDATE_LNG_KEY, 0f).toDouble()
         saveParking(context, latitude, longitude, System.currentTimeMillis())
+        clearCandidate(context)
         return true
     }
 
@@ -61,6 +70,9 @@ object ParkingPrefs {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putLong(IGNORED_AT_KEY, System.currentTimeMillis())
+            .remove(CANDIDATE_LAT_KEY)
+            .remove(CANDIDATE_LNG_KEY)
+            .remove(CANDIDATE_AT_KEY)
             .apply()
     }
 
@@ -84,8 +96,20 @@ object ParkingPrefs {
             return false
         }
 
-        val lastCandidateAt = prefs.getLong(CANDIDATE_AT_KEY, 0L)
-        return timestamp - lastCandidateAt > CANDIDATE_COOLDOWN_MILLIS
+        return true
+    }
+
+    fun clearCandidate(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(CANDIDATE_LAT_KEY)
+            .remove(CANDIDATE_LNG_KEY)
+            .remove(CANDIDATE_AT_KEY)
+            .apply()
+    }
+
+    private fun candidateIsFresh(candidateAt: Long, timestamp: Long): Boolean {
+        return candidateAt > 0L && timestamp - candidateAt <= CANDIDATE_EXPIRY_MILLIS
     }
 
     fun automaticDetectionEnabled(context: Context): Boolean {
