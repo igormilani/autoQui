@@ -14,10 +14,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.ActivityTransition
 import com.google.android.gms.location.ActivityTransitionResult
-import com.google.android.gms.location.CancellationTokenSource
 import com.google.android.gms.location.DetectedActivity
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 
 class ParkingTransitionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

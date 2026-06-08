@@ -782,10 +782,9 @@ class _HeaderLanguageMenu extends StatelessWidget {
         ),
         child: Text(
           _languageEmoji(context, selectedLanguage),
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontSize: 20,
-            letterSpacing: 0,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontSize: 20, letterSpacing: 0),
         ),
       ),
       itemBuilder: (context) => [
