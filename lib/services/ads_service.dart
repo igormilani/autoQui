@@ -6,7 +6,7 @@ class AdsService {
   static const _androidTestBannerAdUnitId =
       'ca-app-pub-3940256099942544/6300978111';
   static const _androidReleaseBannerAdUnitId =
-      'ca-app-pub-6373365011893171/2226162524';
+      'ca-app-pub-6373365011893171/2263684330';
 
   static String get androidBannerAdUnitId {
     return kReleaseMode
