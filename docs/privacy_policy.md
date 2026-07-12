@@ -1,6 +1,6 @@
 # Privacy Policy AutoQui
 
-Ultimo aggiornamento: 25 maggio 2026
+Ultimo aggiornamento: 12 luglio 2026
 
 AutoQui aiuta l'utente a salvare la posizione del parcheggio e a ritrovare l'auto. Questa informativa descrive in modo semplice quali dati vengono usati dall'app e per quali finalita.
 
@@ -35,6 +35,21 @@ AutoQui usa notifiche locali per informarti che e stato rilevato un possibile pa
 ## Salvataggio locale e assenza di backend
 
 AutoQui non dispone di un backend proprietario. I dati del parcheggio salvato restano localmente sul dispositivo, nelle preferenze dell'app. AutoQui non invia la posizione a server AutoQui e non sincronizza i dati nel cloud.
+
+## Conservazione e cancellazione dei dati
+
+AutoQui non memorizza dati personali o dati di localizzazione su propri server, poiche l'app non dispone di un server proprietario.
+
+La posizione del parcheggio viene conservata esclusivamente in locale sul dispositivo dell'utente fino a quando si verifica una delle seguenti condizioni:
+
+- l'utente salva una nuova posizione;
+- l'utente cancella la posizione salvata;
+- l'utente cancella i dati dell'app dalle impostazioni del dispositivo;
+- l'app viene disinstallata.
+
+AutoQui non puo recuperare ne conservare tali dati dopo che sono stati cancellati dal dispositivo.
+
+I servizi di terze parti integrati nell'app, inclusi Google AdMob, Google Maps e Google Play Services, possono raccogliere e conservare dati in conformita alle rispettive informative sulla privacy e politiche di conservazione. AutoQui non controlla direttamente i periodi di conservazione applicati da tali servizi.
 
 ## Condivisione e vendita dei dati
 
