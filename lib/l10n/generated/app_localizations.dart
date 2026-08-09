@@ -306,6 +306,12 @@ abstract class AppLocalizations {
   /// **'Show privacy policy'**
   String get showPrivacyPolicy;
 
+  /// No description provided for @adPrivacyOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Ad privacy options'**
+  String get adPrivacyOptions;
+
   /// No description provided for @batteryBackgroundInfo.
   ///
   /// In en, this message translates to:

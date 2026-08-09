@@ -121,6 +121,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get showPrivacyPolicy => 'Afficher la politique de confidentialité';
 
   @override
+  String get adPrivacyOptions => 'Options de confidentialité publicitaire';
+
+  @override
   String get batteryBackgroundInfo => 'Infos batterie et arrière-plan';
 
   @override

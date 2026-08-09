@@ -120,6 +120,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get showPrivacyPolicy => 'Mostrar política de privacidade';
 
   @override
+  String get adPrivacyOptions => 'Opções de privacidade de anúncios';
+
+  @override
   String get batteryBackgroundInfo => 'Informação de bateria e segundo plano';
 
   @override

@@ -119,6 +119,9 @@ class AppLocalizationsIt extends AppLocalizations {
   String get showPrivacyPolicy => 'Mostra privacy policy';
 
   @override
+  String get adPrivacyOptions => 'Opzioni privacy pubblicitaria';
+
+  @override
   String get batteryBackgroundInfo => 'Info batteria e background';
 
   @override

@@ -33,6 +33,7 @@
   "automaticDetectionSwitchSubtitle": "Usa localização em segundo plano e Activity Recognition.",
   "notificationsSwitchSubtitle": "Mostra alertas locais de possível estacionamento.",
   "showPrivacyPolicy": "Mostrar política de privacidade",
+  "adPrivacyOptions": "Opções de privacidade de anúncios",
   "batteryBackgroundInfo": "Informação de bateria e segundo plano",
   "showPermissionsDisclosure": "Mostrar aviso de permissões",
   "languageTitle": "Idioma",

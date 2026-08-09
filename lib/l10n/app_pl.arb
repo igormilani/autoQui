@@ -33,6 +33,7 @@
   "automaticDetectionSwitchSubtitle": "Używa lokalizacji w tle i Activity Recognition.",
   "notificationsSwitchSubtitle": "Pokazuje lokalne alerty o możliwym parkingu.",
   "showPrivacyPolicy": "Pokaż politykę prywatności",
+  "adPrivacyOptions": "Opcje prywatności reklam",
   "batteryBackgroundInfo": "Bateria i działanie w tle",
   "showPermissionsDisclosure": "Pokaż informację o uprawnieniach",
   "languageTitle": "Język",

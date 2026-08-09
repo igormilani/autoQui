@@ -38,6 +38,7 @@
   "automaticDetectionSwitchSubtitle": "Uses background location and Activity Recognition.",
   "notificationsSwitchSubtitle": "Shows local alerts for possible parking positions.",
   "showPrivacyPolicy": "Show privacy policy",
+  "adPrivacyOptions": "Ad privacy options",
   "batteryBackgroundInfo": "Battery and background info",
   "showPermissionsDisclosure": "Show permissions disclosure",
   "languageTitle": "Language",

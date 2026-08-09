@@ -11,6 +11,7 @@ import 'package:auto_qui/l10n/generated/app_localizations.dart';
 import 'models/parking_spot.dart';
 import 'services/app_settings_service.dart';
 import 'services/ads_service.dart';
+import 'services/consent_service.dart';
 import 'services/language_service.dart';
 import 'services/location_service.dart';
 import 'services/navigation_service.dart';
@@ -397,6 +398,19 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _openAdInspector() {
+    MobileAds.instance.openAdInspector((error) {
+      if (error != null) {
+        debugPrint('AD INSPECTOR ERROR');
+        debugPrint('AD INSPECTOR CODE: ${error.code}');
+        debugPrint('AD INSPECTOR DOMAIN: ${error.domain}');
+        debugPrint('AD INSPECTOR MESSAGE: ${error.message}');
+      } else {
+        debugPrint('AD INSPECTOR: opened');
+      }
+    });
+  }
+
   String _locationErrorMessage(LocationException error) {
     return switch (error.code) {
       LocationExceptionCode.gpsDisabled => context.l10n.gpsDisabledError,
@@ -509,6 +523,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
                     onLocate: _centerOnCurrentLocation,
                     onSaveParking: _saveParkingPosition,
                     onOpenRoute: _openRouteToParking,
+                    onOpenAdInspector: _openAdInspector,
                   ),
                   if (widget.showAds) const _AdBanner(),
                 ],
@@ -882,9 +897,26 @@ class PrivacyPermissionsPage extends StatefulWidget {
 }
 
 class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
+  final _consentService = ConsentService();
   late AppSettings _settings = widget.initialSettings;
   bool _updatingDetection = false;
   bool _updatingNotifications = false;
+  bool _privacyOptionsRequired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrivacyOptionsRequirement();
+  }
+
+  Future<void> _loadPrivacyOptionsRequirement() async {
+    final required = await _consentService.privacyOptionsRequired();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _privacyOptionsRequired = required);
+  }
 
   Future<void> _setAutomaticDetection(bool enabled) async {
     setState(() => _updatingDetection = true);
@@ -961,6 +993,11 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
     );
+  }
+
+  Future<void> _showAdPrivacyOptions() async {
+    await _consentService.showPrivacyOptionsForm();
+    await _loadPrivacyOptionsRequirement();
   }
 
   Future<void> _chooseLanguage() async {
@@ -1159,6 +1196,12 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
               title: Text(l10n.showPrivacyPolicy),
               onTap: _showPrivacyPolicy,
             ),
+            if (_privacyOptionsRequired)
+              ListTile(
+                leading: const Icon(Icons.ads_click_outlined),
+                title: Text(l10n.adPrivacyOptions),
+                onTap: _showAdPrivacyOptions,
+              ),
             ListTile(
               leading: const Icon(Icons.battery_alert_outlined),
               title: Text(l10n.batteryBackgroundInfo),
@@ -1224,6 +1267,7 @@ class _ParkingActions extends StatelessWidget {
     required this.onLocate,
     required this.onSaveParking,
     required this.onOpenRoute,
+    required this.onOpenAdInspector,
   });
 
   final ParkingSpot? parkingSpot;
@@ -1233,6 +1277,7 @@ class _ParkingActions extends StatelessWidget {
   final VoidCallback onLocate;
   final VoidCallback onSaveParking;
   final VoidCallback onOpenRoute;
+  final VoidCallback onOpenAdInspector;
 
   @override
   Widget build(BuildContext context) {
@@ -1271,6 +1316,15 @@ class _ParkingActions extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onOpenAdInspector,
+                icon: const Icon(Icons.bug_report_outlined),
+                label: const Text('Ad Inspector'),
+              ),
             ),
             if (parkingSpot != null) ...[
               const SizedBox(height: 8),
@@ -1332,17 +1386,33 @@ class _AdBannerState extends State<_AdBanner> {
       return;
     }
 
+    if (!AdsService.canRequestAds) {
+      debugPrint('ADMOB: banner skipped because canRequestAds is false');
+      return;
+    }
+
+    debugPrint('ADMOB: banner loading');
+    debugPrint('ADMOB UNIT: ${AdsService.androidBannerAdUnitId}');
+
     _bannerAd = BannerAd(
       adUnitId: AdsService.androidBannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
+          debugPrint('ADMOB: banner loaded');
+          debugPrint('ADMOB UNIT: ${AdsService.androidBannerAdUnitId}');
           if (mounted) {
             setState(() => _loaded = true);
           }
         },
-        onAdFailedToLoad: (ad, _) {
+        onAdFailedToLoad: (ad, error) {
+          debugPrint('ADMOB: banner failed');
+          debugPrint('ADMOB UNIT: ${AdsService.androidBannerAdUnitId}');
+          debugPrint('ADMOB CODE: ${error.code}');
+          debugPrint('ADMOB DOMAIN: ${error.domain}');
+          debugPrint('ADMOB MESSAGE: ${error.message}');
+          debugPrint('ADMOB RESPONSE: ${error.responseInfo}');
           ad.dispose();
           if (mounted) {
             setState(() {

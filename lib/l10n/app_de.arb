@@ -33,6 +33,7 @@
   "automaticDetectionSwitchSubtitle": "Verwendet Hintergrundstandort und Activity Recognition.",
   "notificationsSwitchSubtitle": "Zeigt lokale Hinweise zu möglichen Parkpositionen.",
   "showPrivacyPolicy": "Datenschutzerklärung anzeigen",
+  "adPrivacyOptions": "Datenschutzoptionen für Werbung",
   "batteryBackgroundInfo": "Akku- und Hintergrundinfos",
   "showPermissionsDisclosure": "Berechtigungshinweis anzeigen",
   "languageTitle": "Sprache",
