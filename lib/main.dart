@@ -21,7 +21,6 @@ import 'services/permission_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AdsService().initialize();
   runApp(const AutoQuiApp());
 }
 
@@ -172,6 +171,11 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
     _loadSettingsAndStartDetection();
     _loadSavedParking();
     _startUserPositionUpdates();
+    if (widget.showAds) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AdsService().initialize();
+      });
+    }
   }
 
   Future<void> _loadSettingsAndStartDetection() async {
@@ -253,7 +257,7 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
         setState(() {
           _userPosition = LatLng(position.latitude, position.longitude);
         });
-      });
+      }, onError: (_) {});
     } catch (_) {
       // Permission may not be granted yet; explicit buttons request it later.
     }
@@ -398,19 +402,6 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _openAdInspector() {
-    MobileAds.instance.openAdInspector((error) {
-      if (error != null) {
-        debugPrint('AD INSPECTOR ERROR');
-        debugPrint('AD INSPECTOR CODE: ${error.code}');
-        debugPrint('AD INSPECTOR DOMAIN: ${error.domain}');
-        debugPrint('AD INSPECTOR MESSAGE: ${error.message}');
-      } else {
-        debugPrint('AD INSPECTOR: opened');
-      }
-    });
-  }
-
   String _locationErrorMessage(LocationException error) {
     return switch (error.code) {
       LocationExceptionCode.gpsDisabled => context.l10n.gpsDisabledError,
@@ -523,7 +514,6 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
                     onLocate: _centerOnCurrentLocation,
                     onSaveParking: _saveParkingPosition,
                     onOpenRoute: _openRouteToParking,
-                    onOpenAdInspector: _openAdInspector,
                   ),
                   if (widget.showAds) const _AdBanner(),
                 ],
@@ -997,6 +987,7 @@ class _PrivacyPermissionsPageState extends State<PrivacyPermissionsPage> {
 
   Future<void> _showAdPrivacyOptions() async {
     await _consentService.showPrivacyOptionsForm();
+    await AdsService().initialize();
     await _loadPrivacyOptionsRequirement();
   }
 
@@ -1267,7 +1258,6 @@ class _ParkingActions extends StatelessWidget {
     required this.onLocate,
     required this.onSaveParking,
     required this.onOpenRoute,
-    required this.onOpenAdInspector,
   });
 
   final ParkingSpot? parkingSpot;
@@ -1277,7 +1267,6 @@ class _ParkingActions extends StatelessWidget {
   final VoidCallback onLocate;
   final VoidCallback onSaveParking;
   final VoidCallback onOpenRoute;
-  final VoidCallback onOpenAdInspector;
 
   @override
   Widget build(BuildContext context) {
@@ -1316,15 +1305,6 @@ class _ParkingActions extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onOpenAdInspector,
-                icon: const Icon(Icons.bug_report_outlined),
-                label: const Text('Ad Inspector'),
-              ),
             ),
             if (parkingSpot != null) ...[
               const SizedBox(height: 8),
@@ -1376,23 +1356,24 @@ class _AdBanner extends StatefulWidget {
 }
 
 class _AdBannerState extends State<_AdBanner> {
+  final _adsService = AdsService();
   BannerAd? _bannerAd;
   bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    if (!AdsService.enabled) {
+    _adsService.addListener(_loadWhenAllowed);
+    _loadWhenAllowed();
+  }
+
+  void _loadWhenAllowed() {
+    if (_bannerAd != null ||
+        !AdsService.enabled ||
+        !_adsService.mobileAdsInitialized ||
+        !AdsService.canRequestAds) {
       return;
     }
-
-    if (!AdsService.canRequestAds) {
-      debugPrint('ADMOB: banner skipped because canRequestAds is false');
-      return;
-    }
-
-    debugPrint('ADMOB: banner loading');
-    debugPrint('ADMOB UNIT: ${AdsService.androidBannerAdUnitId}');
 
     _bannerAd = BannerAd(
       adUnitId: AdsService.androidBannerAdUnitId,
@@ -1401,18 +1382,14 @@ class _AdBannerState extends State<_AdBanner> {
       listener: BannerAdListener(
         onAdLoaded: (_) {
           debugPrint('ADMOB: banner loaded');
-          debugPrint('ADMOB UNIT: ${AdsService.androidBannerAdUnitId}');
           if (mounted) {
             setState(() => _loaded = true);
           }
         },
         onAdFailedToLoad: (ad, error) {
-          debugPrint('ADMOB: banner failed');
-          debugPrint('ADMOB UNIT: ${AdsService.androidBannerAdUnitId}');
-          debugPrint('ADMOB CODE: ${error.code}');
-          debugPrint('ADMOB DOMAIN: ${error.domain}');
-          debugPrint('ADMOB MESSAGE: ${error.message}');
-          debugPrint('ADMOB RESPONSE: ${error.responseInfo}');
+          debugPrint(
+            'ADMOB: banner failed - code=${error.code}, message=${error.message}',
+          );
           ad.dispose();
           if (mounted) {
             setState(() {
@@ -1427,6 +1404,7 @@ class _AdBannerState extends State<_AdBanner> {
 
   @override
   void dispose() {
+    _adsService.removeListener(_loadWhenAllowed);
     _bannerAd?.dispose();
     super.dispose();
   }
