@@ -276,8 +276,14 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       setState(() => _userPosition = target);
       await _animateTo(target);
     } on LocationException catch (error) {
+      if (!mounted) {
+        return;
+      }
       _showMessage(_locationErrorMessage(error));
     } catch (_) {
+      if (!mounted) {
+        return;
+      }
       _showMessage(context.l10n.locationReadError);
     } finally {
       if (mounted) {
@@ -312,10 +318,19 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
         _userPosition = parkingSpot.latLng;
       });
       await _animateTo(parkingSpot.latLng);
+      if (!mounted) {
+        return;
+      }
       _showMessage(context.l10n.parkingSaved);
     } on LocationException catch (error) {
+      if (!mounted) {
+        return;
+      }
       _showMessage(_locationErrorMessage(error));
     } catch (_) {
+      if (!mounted) {
+        return;
+      }
       _showMessage(context.l10n.parkingSaveError);
     } finally {
       if (mounted) {
@@ -336,10 +351,16 @@ class _AutoQuiHomeState extends State<AutoQuiHome> {
       final opened = await _navigationService.openWalkingRoute(
         parkingSpot.latLng,
       );
+      if (!mounted) {
+        return;
+      }
       if (!opened) {
         _showMessage(context.l10n.googleMapsOpenError);
       }
     } catch (_) {
+      if (!mounted) {
+        return;
+      }
       _showMessage(context.l10n.googleMapsOpenError);
     } finally {
       if (mounted) {
