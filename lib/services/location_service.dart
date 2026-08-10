@@ -22,8 +22,19 @@ class LocationService {
     return Geolocator.getCurrentPosition();
   }
 
-  Stream<Position> positionStream() {
-    return Geolocator.getPositionStream(
+  Stream<Position> positionStream() async* {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw const LocationException(LocationExceptionCode.gpsDisabled);
+    }
+
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      throw const LocationException(LocationExceptionCode.permissionDenied);
+    }
+
+    yield* Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 8,

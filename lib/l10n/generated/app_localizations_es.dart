@@ -120,6 +120,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get showPrivacyPolicy => 'Mostrar política de privacidad';
 
   @override
+  String get adPrivacyOptions => 'Opciones de privacidad publicitaria';
+
+  @override
   String get batteryBackgroundInfo => 'Información de batería y segundo plano';
 
   @override
@@ -155,5 +158,5 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get privacyPolicyText =>
-      'Política de privacidad - AutoQui\n\nÚltima actualización: 25 de mayo de 2026\n\nAutoQui te ayuda a guardar la posición del aparcamiento y encontrar el coche.\n\nDatos usados: ubicación aproximada y precisa, Activity Recognition, notificaciones locales y datos técnicos necesarios para Google Maps y AdMob.\n\nLa ubicación se usa para guardar dónde aparcaste, mostrar dónde está el coche, ayudarte a llegar a él y detectar automáticamente un posible aparcamiento. Para la detección automática puede usarse ubicación en segundo plano.\n\nLos datos del aparcamiento se guardan localmente en el dispositivo. AutoQui no tiene backend propio, no envía la ubicación a servidores de AutoQui y no vende datos.\n\nLa app integra Google Maps SDK y Google Mobile Ads SDK / AdMob, que pueden recopilar datos según sus políticas.\n\nPuedes conceder, denegar o revocar los permisos Android en cualquier momento desde los ajustes del dispositivo.\n\nContacto: privacy-autoqui@example.com';
+      'Política de privacidad - AutoQui\n\nÚltima actualización: 12 de julio de 2026\n\nAutoQui te ayuda a guardar la posición del aparcamiento y encontrar el coche.\n\nDatos usados: ubicación aproximada y precisa, Activity Recognition, notificaciones locales y datos técnicos necesarios para Google Maps y AdMob.\n\nLa ubicación se usa para guardar dónde aparcaste, mostrar dónde está el coche, ayudarte a llegar a él y detectar automáticamente un posible aparcamiento. Para la detección automática puede usarse ubicación en segundo plano.\n\nLos datos del aparcamiento se guardan localmente en el dispositivo. AutoQui no tiene backend propio, no envía la ubicación a servidores de AutoQui y no vende datos.\n\nConservación y eliminación de datos\n\nAutoQui no almacena datos personales ni datos de ubicación en servidores propios, ya que la app no opera un servidor propietario.\n\nLa ubicación de aparcamiento guardada se conserva solo localmente en el dispositivo del usuario hasta que ocurre una de estas condiciones:\n- el usuario guarda una nueva ubicación;\n- el usuario elimina la ubicación guardada;\n- el usuario borra los datos de la app desde los ajustes del dispositivo;\n- la app se desinstala.\n\nAutoQui no puede recuperar ni conservar esta información después de que se haya eliminado del dispositivo.\n\nLos servicios de terceros integrados en la app, incluidos Google AdMob, Google Maps y Google Play Services, pueden recopilar y conservar datos de acuerdo con sus propias políticas de privacidad y prácticas de conservación. AutoQui no controla directamente los periodos de conservación aplicados por esos servicios.\n\nLa app integra Google Maps SDK y Google Mobile Ads SDK / AdMob, que pueden recopilar datos según sus políticas.\n\nPuedes conceder, denegar o revocar los permisos Android en cualquier momento desde los ajustes del dispositivo.\n\nContacto: privacy-autoqui@example.com';
 }

@@ -17,7 +17,7 @@
             android:value="${GOOGLE_MAPS_API_KEY}" />
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-6373365011893171~1231662517" />
+            android:value="ca-app-pub-6373365011893171~7633315107" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

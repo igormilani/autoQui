@@ -306,6 +306,12 @@ abstract class AppLocalizations {
   /// **'Show privacy policy'**
   String get showPrivacyPolicy;
 
+  /// No description provided for @adPrivacyOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Ad privacy options'**
+  String get adPrivacyOptions;
+
   /// No description provided for @batteryBackgroundInfo.
   ///
   /// In en, this message translates to:
@@ -369,7 +375,7 @@ abstract class AppLocalizations {
   /// No description provided for @privacyPolicyText.
   ///
   /// In en, this message translates to:
-  /// **'Privacy Policy - AutoQui\n\nLast updated: May 25, 2026\n\nAutoQui helps you save your parking position and find your car again.\n\nData used by the app:\n- approximate and precise device location;\n- device Activity Recognition;\n- local notifications;\n- technical data required by Google Maps and AdMob.\n\nWhy AutoQui uses location:\n- to save where you parked;\n- to show where the car is;\n- to help you reach the car with map or navigation;\n- to automatically detect a possible parking position.\n\nFor automatic detection, AutoQui may use location even when the app is not open. This feature is used only to detect a possible parking position and show a local confirmation notification.\n\nAutoQui uses Activity Recognition to receive signals such as in vehicle, on foot or walking. These signals help understand when you may have left the car after driving.\n\nParking data stays locally on the device. AutoQui has no proprietary backend, does not send parking location to AutoQui servers and does not sell user data.\n\nThe app integrates Google Maps SDK and Google Mobile Ads SDK / AdMob. These Google services may collect data according to their own policies.\n\nYou can grant, deny or revoke Android permissions at any time from device settings.\n\nContact: privacy-autoqui@example.com'**
+  /// **'Privacy Policy - AutoQui\n\nLast updated: July 12, 2026\n\nAutoQui helps you save your parking position and find your car again.\n\nData used by the app:\n- approximate and precise device location;\n- device Activity Recognition;\n- local notifications;\n- technical data required by Google Maps and AdMob.\n\nWhy AutoQui uses location:\n- to save where you parked;\n- to show where the car is;\n- to help you reach the car with map or navigation;\n- to automatically detect a possible parking position.\n\nFor automatic detection, AutoQui may use location even when the app is not open. This feature is used only to detect a possible parking position and show a local confirmation notification.\n\nAutoQui uses Activity Recognition to receive signals such as in vehicle, on foot or walking. These signals help understand when you may have left the car after driving.\n\nParking data stays locally on the device. AutoQui has no proprietary backend, does not send parking location to AutoQui servers and does not sell user data.\n\nData retention and deletion\n\nAutoQui does not store personal data or location data on its own servers, as the app does not operate a proprietary server.\n\nThe saved parking location is stored only locally on the user\'s device until one of the following occurs:\n- the user saves a new location;\n- the user deletes the saved location;\n- the user clears the app data through the device settings;\n- the app is uninstalled.\n\nAutoQui cannot retrieve or retain this information after it has been deleted from the device.\n\nThird-party services integrated into the app, including Google AdMob, Google Maps and Google Play Services, may collect and retain data according to their own privacy policies and data retention practices. AutoQui does not directly control the retention periods applied by those services.\n\nThe app integrates Google Maps SDK and Google Mobile Ads SDK / AdMob. These Google services may collect data according to their own policies.\n\nYou can grant, deny or revoke Android permissions at any time from device settings.\n\nContact: privacy-autoqui@example.com'**
   String get privacyPolicyText;
 }
 
